@@ -25,8 +25,8 @@ LABEL org.opencontainers.image.licenses="Apache-2.0"
 WORKDIR /
 
 ENV GIN_MODE=release
-COPY $BIN_DIR/${TARGETPLATFORM}/controller .
-COPY $BIN_DIR/${TARGETPLATFORM}/migrate .
+COPY $BIN_DIR/bin-${TARGETPLATFORM//\//_}/controller .
+COPY $BIN_DIR/bin-${TARGETPLATFORM//\//_}/migrate .
 RUN chmod +x controller migrate
 
 EXPOSE 8088:8088
