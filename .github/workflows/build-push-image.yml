@@ -39,7 +39,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: 'go.mod'  # 自动从 go.mod 获取版本
+          go-version-file: 'go.mod'  # get Go version from go.mod
 
       - name: Download dependencies
         run: | 
@@ -112,7 +112,7 @@ jobs:
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: bin-${{ matrix.platform.image_platform }}
+          name: bin-${{ matrix.platform.goos }}_${{ matrix.platform.goarch }}. # Forward slash / cannot appear in name
           path: bin/${{ matrix.platform.image_platform }}
 
   build_and_push_image:
