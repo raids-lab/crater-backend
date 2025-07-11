@@ -27,6 +27,7 @@ WORKDIR /
 ENV GIN_MODE=release
 COPY $BIN_DIR/${TARGETPLATFORM}/controller .
 COPY $BIN_DIR/${TARGETPLATFORM}/migrate .
+RUN chmod +x controller migrate
 
 EXPOSE 8088:8088
 

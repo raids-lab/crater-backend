@@ -112,7 +112,7 @@ jobs:
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: bin-${{ matrix.platform.goos }}_${{ matrix.platform.goarch }}. # Forward slash / cannot appear in name
+          name: bin-${{ matrix.platform.goos }}_${{ matrix.platform.goarch }}  # Forward slash / cannot appear in name
           path: bin/${{ matrix.platform.image_platform }}
 
   build_and_push_image:
@@ -164,7 +164,6 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           build-args: |
-            TARGETPLATFORM=$TARGETPLATFORM
             BIN_DIR=bin
 
       - uses: quartx-analytics/ghcr-cleaner@v1
