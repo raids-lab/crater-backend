@@ -14,7 +14,7 @@ require (
 	github.com/imroc/req/v3 v3.48.0
 	github.com/joho/godotenv v1.5.1
 	github.com/mittwald/goharbor-client/v5 v5.6.0
-	github.com/prometheus/client_golang v1.20.4
+	github.com/prometheus/client_golang v1.22.0
 	github.com/prometheus/common v0.65.0
 	github.com/samber/lo v1.47.0
 	github.com/sirupsen/logrus v1.9.3
@@ -98,7 +98,7 @@ require (
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/klauspost/compress v1.17.9 // indirect
+	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.7 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
