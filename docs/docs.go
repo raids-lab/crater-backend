@@ -6632,7 +6632,7 @@ const docTemplate = `{
                 "Pending",
                 "Approved",
                 "Rejected",
-                "Cancelled"
+                "Canceled"
             ],
             "x-enum-comments": {
                 "ApprovalOrderStatusApproved": "已批准",
@@ -7510,6 +7510,14 @@ const docTemplate = `{
                 "reason": {
                     "description": "审批原因",
                     "type": "string"
+                },
+                "reviewNotes": {
+                    "description": "审批备注",
+                    "type": "string"
+                },
+                "reviewerID": {
+                    "description": "审批人ID",
+                    "type": "integer"
                 },
                 "status": {
                     "$ref": "#/definitions/github_com_raids-lab_crater_dao_model.ApprovalOrderStatus"
