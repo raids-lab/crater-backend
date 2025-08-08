@@ -320,7 +320,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/admin/approvalorder/listallapprovalorders": {
+        "/v1/admin/approvalorder": {
             "get": {
                 "security": [
                     {
@@ -2200,7 +2200,45 @@ const docTemplate = `{
                 "responses": {}
             }
         },
-        "/v1/approvalorder/createapprovalorder": {
+        "/v1/approvalorder": {
+            "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "获取当前用户创建的所有审批工单",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "approvalorder"
+                ],
+                "summary": "获取我的审批工单",
+                "responses": {
+                    "200": {
+                        "description": "成功返回工单列表",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_raids-lab_crater_internal_resputil.Response-any"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_raids-lab_crater_internal_resputil.Response-any"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器错误",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_raids-lab_crater_internal_resputil.Response-any"
+                        }
+                    }
+                }
+            },
             "post": {
                 "security": [
                     {
@@ -2251,97 +2289,8 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/approvalorder/deleteapprovalorder/{id}": {
-            "delete": {
-                "security": [
-                    {
-                        "Bearer": []
-                    }
-                ],
-                "description": "删除指定的审批工单",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "approvalorder"
-                ],
-                "summary": "删除审批工单",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "工单ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "成功返回值描述",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_raids-lab_crater_internal_resputil.Response-string"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_raids-lab_crater_internal_resputil.Response-any"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器错误",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_raids-lab_crater_internal_resputil.Response-any"
-                        }
-                    }
-                }
-            }
-        },
-        "/v1/approvalorder/myapprovalorder": {
-            "get": {
-                "security": [
-                    {
-                        "Bearer": []
-                    }
-                ],
-                "description": "获取当前用户创建的所有审批工单",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "approvalorder"
-                ],
-                "summary": "获取我的审批工单",
-                "responses": {
-                    "200": {
-                        "description": "成功返回工单列表",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_raids-lab_crater_internal_resputil.Response-any"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_raids-lab_crater_internal_resputil.Response-any"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器错误",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_raids-lab_crater_internal_resputil.Response-any"
-                        }
-                    }
-                }
-            }
-        },
-        "/v1/approvalorder/updateapprovalorder": {
-            "post": {
+        "/v1/approvalorder/{id}": {
+            "put": {
                 "security": [
                     {
                         "Bearer": []
@@ -2367,6 +2316,53 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/internal_handler.UpdateApprovalOrder"
                         }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功返回值描述",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_raids-lab_crater_internal_resputil.Response-string"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_raids-lab_crater_internal_resputil.Response-any"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器错误",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_raids-lab_crater_internal_resputil.Response-any"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "删除指定的审批工单",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "approvalorder"
+                ],
+                "summary": "删除审批工单",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "工单ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
                     }
                 ],
                 "responses": {
@@ -7491,17 +7487,12 @@ const docTemplate = `{
         "internal_handler.UpdateApprovalOrder": {
             "type": "object",
             "required": [
-                "id",
                 "name",
                 "type"
             ],
             "properties": {
                 "extensionHours": {
                     "description": "延长小时数",
-                    "type": "integer"
-                },
-                "id": {
-                    "description": "工单ID",
                     "type": "integer"
                 },
                 "name": {

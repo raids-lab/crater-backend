@@ -25,9 +25,9 @@ const (
 
 // ApprovalOrderContent 审批订单内容
 type ApprovalOrderContent struct {
-	ApprovalOrderTypeID         uint   `json:"approvalorderTypeID,omitempty"`
-	ApprovalOrderExtensionHours uint   `json:"approvalorderExtensionHours,omitempty"` // 延长小时数
-	ApprovalOrderReason         string `json:"approvalorderReason,omitempty"`         // 审批原因
+	ApprovalOrderTypeID         uint   `json:"approvalorderTypeID"`
+	ApprovalOrderExtensionHours uint   `json:"approvalorderExtensionHours"` // 延长小时数
+	ApprovalOrderReason         string `json:"approvalorderReason"`         // 审批原因
 }
 
 // ApprovalOrder 审批订单模型

@@ -619,9 +619,6 @@ definitions:
       extensionHours:
         description: 延长小时数
         type: integer
-      id:
-        description: 工单ID
-        type: integer
       name:
         type: string
       reason:
@@ -641,7 +638,6 @@ definitions:
         description: 关联的ID，可能是数据集或任务ID
         type: integer
     required:
-    - id
     - name
     - type
     type: object
@@ -1443,7 +1439,7 @@ paths:
       summary: 获取指定账户
       tags:
       - Project
-  /v1/admin/approvalorder/listallapprovalorders:
+  /v1/admin/approvalorder:
     get:
       consumes:
       - application/json
@@ -2638,7 +2634,31 @@ paths:
       summary: 管理员模式根据ID列表删除Image
       tags:
       - ImagePack
-  /v1/approvalorder/createapprovalorder:
+  /v1/approvalorder:
+    get:
+      consumes:
+      - application/json
+      description: 获取当前用户创建的所有审批工单
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功返回工单列表
+          schema:
+            $ref: '#/definitions/github_com_raids-lab_crater_internal_resputil.Response-any'
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/github_com_raids-lab_crater_internal_resputil.Response-any'
+        "500":
+          description: 服务器错误
+          schema:
+            $ref: '#/definitions/github_com_raids-lab_crater_internal_resputil.Response-any'
+      security:
+      - Bearer: []
+      summary: 获取我的审批工单
+      tags:
+      - approvalorder
     post:
       consumes:
       - application/json
@@ -2670,7 +2690,7 @@ paths:
       summary: 创建审批工单
       tags:
       - approvalorder
-  /v1/approvalorder/deleteapprovalorder/{id}:
+  /v1/approvalorder/{id}:
     delete:
       consumes:
       - application/json
@@ -2701,33 +2721,7 @@ paths:
       summary: 删除审批工单
       tags:
       - approvalorder
-  /v1/approvalorder/myapprovalorder:
-    get:
-      consumes:
-      - application/json
-      description: 获取当前用户创建的所有审批工单
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 成功返回工单列表
-          schema:
-            $ref: '#/definitions/github_com_raids-lab_crater_internal_resputil.Response-any'
-        "400":
-          description: 请求参数错误
-          schema:
-            $ref: '#/definitions/github_com_raids-lab_crater_internal_resputil.Response-any'
-        "500":
-          description: 服务器错误
-          schema:
-            $ref: '#/definitions/github_com_raids-lab_crater_internal_resputil.Response-any'
-      security:
-      - Bearer: []
-      summary: 获取我的审批工单
-      tags:
-      - approvalorder
-  /v1/approvalorder/updateapprovalorder:
-    post:
+    put:
       consumes:
       - application/json
       description: 更新现有的审批工单

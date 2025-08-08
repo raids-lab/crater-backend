@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"strconv"
 	"time"
 
 	"encoding/json"
@@ -35,15 +34,16 @@ func (mgr *ApprovalOrderMgr) GetName() string { return mgr.name }
 func (mgr *ApprovalOrderMgr) RegisterPublic(_ *gin.RouterGroup) {}
 
 func (mgr *ApprovalOrderMgr) RegisterProtected(g *gin.RouterGroup) {
-	g.GET("/myapprovalorder", mgr.GetMyApprovalOrders)
-	g.POST("/createapprovalorder", mgr.CreateApprovalOrder)
-	g.DELETE("/deleteapprovalorder/:id", mgr.DeleteApprovalOrder)
-	g.POST("/updateapprovalorder", mgr.UpdateApprovalOrder)
+	// RESTful 风格的路由设计
+	g.GET("", mgr.GetMyApprovalOrders)        // 获取我的审批工单列表
+	g.POST("", mgr.CreateApprovalOrder)       // 创建审批工单
+	g.PUT("/:id", mgr.UpdateApprovalOrder)    // 更新审批工单
+	g.DELETE("/:id", mgr.DeleteApprovalOrder) // 删除审批工单
 }
 
 func (mgr *ApprovalOrderMgr) RegisterAdmin(g *gin.RouterGroup) {
-	g.GET("/listallapprovalorders", mgr.ListAllApprovalOrders)
-	// Implement admin-specific routes here if needed
+	// 管理员接口
+	g.GET("", mgr.ListAllApprovalOrders) // 获取所有审批工单
 }
 
 type ApprovalOrderResp struct {
@@ -72,7 +72,7 @@ type ApprovalOrderResp struct {
 //	@Success		200	{object}	resputil.Response[any]	"成功返回工单列表"
 //	@Failure		400	{object}	resputil.Response[any]	"请求参数错误"
 //	@Failure		500	{object}	resputil.Response[any]	"服务器错误"
-//	@Router			/v1/approvalorder/myapprovalorder [get]
+//	@Router			/v1/approvalorder [get]
 //
 // GetMyApprovalOrders 获取当前用户创建的所有审批工单
 func (mgr *ApprovalOrderMgr) GetMyApprovalOrders(c *gin.Context) {
@@ -160,7 +160,7 @@ func convertToApprovalOrderResps(orders []*model.ApprovalOrder) []ApprovalOrderR
 //	@Failure		400	{object} resputil.Response[any]	"请求参数错误"
 //	@Failure		500	{object} resputil.Response[any] "服务器错误"
 //	@Security		Bearer
-//	@Router			/v1/admin/approvalorder/listallapprovalorders [get]
+//	@Router			/v1/admin/approvalorder [get]
 func (mgr *ApprovalOrderMgr) ListAllApprovalOrders(c *gin.Context) {
 	klog.Infof("List all approval orders")
 
@@ -201,7 +201,7 @@ type ApprovalOrderreq struct {
 //	@Success		200 {object} resputil.Response[string] "成功返回值描述"
 //	@Failure		400 {object} resputil.Response[any] "请求参数错误"
 //	@Failure		500 {object} resputil.Response[any] "服务器错误"
-//	@Router			/v1/approvalorder/createapprovalorder [post]
+//	@Router			/v1/approvalorder [post]
 func (mgr *ApprovalOrderMgr) CreateApprovalOrder(c *gin.Context) {
 	var req ApprovalOrderreq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -239,7 +239,6 @@ func (mgr *ApprovalOrderMgr) CreateApprovalOrder(c *gin.Context) {
 }
 
 type UpdateApprovalOrder struct {
-	ID             uint                      `json:"id" binding:"required"` // 工单ID
 	Name           string                    `json:"name" binding:"required"`
 	Type           model.ApprovalOrderType   `json:"type" binding:"required"`
 	Status         model.ApprovalOrderStatus `json:"status"`
@@ -248,6 +247,9 @@ type UpdateApprovalOrder struct {
 	ExtensionHours uint                      `json:"extensionHours"` // 延长小时数
 	ReviewerID     uint                      `json:"reviewerID"`     // 审批人ID
 	ReviewNotes    string                    `json:"reviewNotes"`    // 审批备注
+}
+type ApprovalOrderIDReq struct {
+	ID uint `json:"id" binding:"required"` // 工单ID
 }
 
 // swagger
@@ -262,15 +264,20 @@ type UpdateApprovalOrder struct {
 //	@Success		200 {object} resputil.Response[string] "成功返回值描述"
 //	@Failure		400 {object} resputil.Response[any] "请求参数错误"
 //	@Failure		500 {object} resputil.Response[any] "服务器错误"
-//	@Router			/v1/approvalorder/updateapprovalorder [post]
+//	@Router			/v1/approvalorder/{id} [put]
 func (mgr *ApprovalOrderMgr) UpdateApprovalOrder(c *gin.Context) {
 	var req UpdateApprovalOrder
+	var orderID ApprovalOrderIDReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		klog.Errorf("请求参数绑定失败: %v", err)
 		resputil.Error(c, "请求参数错误", resputil.NotSpecified)
 		return
 	}
-
+	if err := c.ShouldBindUri(&orderID); err != nil {
+		klog.Errorf("请求参数绑定失败: %v", err)
+		resputil.Error(c, "请求参数错误", resputil.NotSpecified)
+		return
+	}
 	// 1. 获取当前用户信息
 	token := util.GetToken(c)
 	if token.UserID == 0 {
@@ -292,7 +299,7 @@ func (mgr *ApprovalOrderMgr) UpdateApprovalOrder(c *gin.Context) {
 		ReviewNotes: req.ReviewNotes,
 	}
 
-	info, err := query.ApprovalOrder.WithContext(c).Where(query.ApprovalOrder.ID.Eq(req.ID)).Updates(&order)
+	info, err := query.ApprovalOrder.WithContext(c).Where(query.ApprovalOrder.ID.Eq(orderID.ID)).Updates(&order)
 	if err != nil {
 		klog.Errorf("更新审批工单失败, userID: %d, err: %v", token.UserID, err)
 		resputil.Error(c, "更新审批工单失败", resputil.NotSpecified)
@@ -314,65 +321,60 @@ func (mgr *ApprovalOrderMgr) UpdateApprovalOrder(c *gin.Context) {
 //	@Success		200 {object} resputil.Response[string] "成功返回值描述"
 //	@Failure		400 {object} resputil.Response[any] "请求参数错误"
 //	@Failure		500 {object} resputil.Response[any] "服务器错误"
-//	@Router			/v1/approvalorder/deleteapprovalorder/{id} [delete]
+//	@Router			/v1/approvalorder/{id} [delete]
 //
 // DeleteApprovalOrder 用户删除指定的审批工单
 func (mgr *ApprovalOrderMgr) DeleteApprovalOrder(c *gin.Context) {
 	// 1. 获取当前用户信息
 	token := util.GetToken(c)
+
 	if token.UserID == 0 {
 		resputil.Error(c, "无法获取用户ID", resputil.NotSpecified)
 		return
 	}
 
 	// 2. 获取工单ID
-	orderID := c.Param("id")
-	if orderID == "" {
-		resputil.Error(c, "工单ID不能为空", resputil.NotSpecified)
+	var orderID ApprovalOrderIDReq
+	if err := c.ShouldBindUri(&orderID); err != nil {
+		klog.Errorf("请求参数绑定失败: %v", err)
+		resputil.Error(c, "请求参数错误", resputil.NotSpecified)
 		return
 	}
-	// Convert orderID to uint
-	orderIDUint64, err := strconv.ParseUint(orderID, 10, 64)
-	if err != nil {
-		resputil.Error(c, "工单ID格式错误", resputil.NotSpecified)
-		return
-	}
-	orderIDUint := uint(orderIDUint64)
 
 	// 3. 首先检查工单是否存在且属于当前用户
 	ao := query.ApprovalOrder
 	existingOrder, err := ao.WithContext(c).
-		Where(ao.ID.Eq(orderIDUint)).
+		Where(ao.ID.Eq(orderID.ID)).
 		First()
 	if err != nil {
-		klog.Errorf("查询审批工单失败, userID: %d, orderID: %s, err: %v", token.UserID, orderID, err)
+		klog.Errorf("查询审批工单失败, userID: %d, orderID: %d, err: %v", token.UserID, orderID, err)
 		resputil.Error(c, "工单不存在", resputil.NotSpecified)
 		return
 	}
 
 	// 4. 权限检查：只有创建者才能删除自己的工单
 	if existingOrder.CreatorID != token.UserID {
-		klog.Warningf("用户尝试删除非自己创建的工单, userID: %d, orderID: %s, creatorID: %d",
+		klog.Warningf("用户尝试删除非自己创建的工单, userID: %d, orderID: %d, creatorID: %d",
 			token.UserID, orderID, existingOrder.CreatorID)
 		resputil.Error(c, "没有权限删除此工单", resputil.NotSpecified)
 		return
 	}
 
 	// 6. 执行删除操作
-	result, err := ao.WithContext(c).Where(ao.ID.Eq(orderIDUint)).Delete(&model.ApprovalOrder{})
+	result, err := ao.WithContext(c).Where(ao.ID.Eq(orderID.ID)).Delete(&model.ApprovalOrder{})
 	if err != nil {
-		klog.Errorf("删除审批工单失败, userID: %d, orderID: %s, err: %v", token.UserID, orderID, err)
+		klog.Errorf("删除审批工单失败, userID: %d, orderID: %d, err: %v", token.UserID, orderID, err)
 		resputil.Error(c, "删除审批工单失败", resputil.NotSpecified)
 		return
 	}
 
 	// 7. 检查是否真的删除了记录
 	if result.RowsAffected == 0 {
-		klog.Warningf("删除操作未影响任何记录, userID: %d, orderID: %s", token.UserID, orderID)
+		klog.Warningf("删除操作未影响任何记录, userID: %d, orderID: %d", token.UserID, orderID)
 		resputil.Error(c, "工单删除失败，记录不存在", resputil.NotSpecified)
 		return
 	}
 
-	klog.Infof("删除审批工单成功, userID: %d, orderID: %s", token.UserID, orderID)
+	klog.Infof("删除审批工单成功, userID: %d, orderID: %d", token.UserID, orderID)
 	resputil.Success(c, "delete approvalorder successfully")
 }
