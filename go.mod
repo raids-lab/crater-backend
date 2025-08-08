@@ -32,9 +32,9 @@ require (
 	gorm.io/gen v0.3.27
 	gorm.io/gorm v1.30.0
 	gorm.io/plugin/dbresolver v1.6.0
-	k8s.io/api v0.33.2
-	k8s.io/apimachinery v0.33.2
-	k8s.io/client-go v0.33.2
+	k8s.io/api v0.33.3
+	k8s.io/apimachinery v0.33.3
+	k8s.io/client-go v0.33.3
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/utils v0.0.0-20241104100929-3ea5e8cea738
 	sigs.k8s.io/controller-runtime v0.21.0
