@@ -70,7 +70,6 @@ func (mgr *NodeMgr) RegisterProtected(g *gin.RouterGroup) {
 	g.GET("/:name", mgr.GetNode)
 	g.GET("/:name/pods", mgr.GetPodsForNode)
 	g.GET("/:name/gpu", mgr.ListNodeGPUInfo)
-	g.GET("/:name/mark", mgr.GetNodeMarks)
 }
 
 //nolint:dupl // ignore duplicate code
