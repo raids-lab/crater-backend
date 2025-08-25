@@ -71,9 +71,10 @@ type Config struct {
 
 	// image build tools
 	ImageBuildTools struct {
-		BuildxImage  string `json:"buildxImage"` // Image for buildx frontend
-		NerdctlImage string `json:"nerdctlImage"`
-		EnvdImage    string `json:"envdImage"`
+		BackendHttpsProxy string `json:"backendHttpsProxy"`
+		BuildxImage       string `json:"buildxImage"` // Image for buildx frontend
+		NerdctlImage      string `json:"nerdctlImage"`
+		EnvdImage         string `json:"envdImage"`
 	} `json:"imageBuildTools"`
 
 	SMTP struct {
