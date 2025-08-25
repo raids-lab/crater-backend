@@ -64,6 +64,10 @@ func (b *imagePacker) generateEnvdContainer(data *EnvdReq) []corev1.Container {
 					Value: "/.docker",
 				},
 				{
+					Name:  "HTTPS_PROXY",
+					Value: config.GetConfig().HttpsProxy,
+				},
+				{
 					Name:  "NO_PROXY",
 					Value: fmt.Sprintf("$(NO_PROXY),%s,%s", buildkitdAmdNameSpace, backendHost),
 				},
