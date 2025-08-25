@@ -71,14 +71,9 @@ func (mgr *NodeMgr) RegisterProtected(g *gin.RouterGroup) {
 	g.GET("/:name/pods", mgr.GetPodsForNode)
 	g.GET("/:name/gpu", mgr.ListNodeGPUInfo)
 	g.GET("/:name/mark", mgr.GetNodeMarks)
-	g.POST("/:name/label", mgr.AddNodeLabel)
-	g.DELETE("/:name/label", mgr.DeleteNodeLabel)
-	g.POST("/:name/annotation", mgr.AddNodeAnnotation)
-	g.DELETE("/:name/annotation", mgr.DeleteNodeAnnotation)
-	g.POST("/:name/taint", mgr.AddNodeTaint)
-	g.DELETE("/:name/taint", mgr.DeleteNodeTaint)
 }
 
+//nolint:dupl // ignore duplicate code
 func (mgr *NodeMgr) RegisterAdmin(g *gin.RouterGroup) {
 	g.GET("", mgr.ListNode)
 	g.GET("/:name/pods", mgr.GetPodsForNode)
@@ -318,6 +313,8 @@ func (mgr *NodeMgr) GetNodeMarks(c *gin.Context) {
 //	@Failure		400		{object}	resputil.Response[any]		"请求参数错误"
 //	@Failure		500		{object}	resputil.Response[any]		"其他错误"
 //	@Router			/v1/nodes/{name}/label [post]
+//
+//nolint:dupl // ignore duplicate code
 func (mgr *NodeMgr) AddNodeLabel(c *gin.Context) {
 	var req NodePodRequest
 	if err := c.ShouldBindUri(&req); err != nil {
@@ -437,8 +434,6 @@ func (mgr *NodeMgr) AddNodeAnnotation(c *gin.Context) {
 //	@Failure		400		{object}	resputil.Response[any]		"请求参数错误"
 //	@Failure		500		{object}	resputil.Response[any]		"其他错误"
 //	@Router			/v1/nodes/{name}/annotation [delete]
-//
-//nolint:dupl // ignore duplicate code
 func (mgr *NodeMgr) DeleteNodeAnnotation(c *gin.Context) {
 	var req NodePodRequest
 	if err := c.ShouldBindUri(&req); err != nil {
@@ -478,8 +473,6 @@ func (mgr *NodeMgr) DeleteNodeAnnotation(c *gin.Context) {
 //	@Failure		400		{object}	resputil.Response[any]		"请求参数错误"
 //	@Failure		500		{object}	resputil.Response[any]		"其他错误"
 //	@Router			/v1/nodes/{name}/taint [post]
-//
-//nolint:dupl // ignore duplicate code
 func (mgr *NodeMgr) AddNodeTaint(c *gin.Context) {
 	var req NodePodRequest
 	if err := c.ShouldBindUri(&req); err != nil {
@@ -519,8 +512,6 @@ func (mgr *NodeMgr) AddNodeTaint(c *gin.Context) {
 //	@Failure		400		{object}	resputil.Response[any]		"请求参数错误"
 //	@Failure		500		{object}	resputil.Response[any]		"其他错误"
 //	@Router			/v1/nodes/{name}/taint [delete]
-//
-//nolint:dupl // ignore duplicate code
 func (mgr *NodeMgr) DeleteNodeTaint(c *gin.Context) {
 	var req NodePodRequest
 	if err := c.ShouldBindUri(&req); err != nil {

@@ -5671,14 +5671,14 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/nodes/{name}/taintv2": {
+        "/v1/nodes/{name}/taint": {
             "post": {
                 "security": [
                     {
                         "Bearer": []
                     }
                 ],
-                "description": "为指定节点添加污点（V2版本）",
+                "description": "为指定节点添加污点",
                 "consumes": [
                     "application/json"
                 ],
@@ -5703,7 +5703,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_handler.NodeTaintV2"
+                            "$ref": "#/definitions/internal_handler.NodeTaint"
                         }
                     }
                 ],
@@ -5734,7 +5734,7 @@ const docTemplate = `{
                         "Bearer": []
                     }
                 ],
-                "description": "删除指定节点的污点（V2版本）",
+                "description": "删除指定节点的污点",
                 "consumes": [
                     "application/json"
                 ],
@@ -5759,7 +5759,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_handler.NodeTaintV2"
+                            "$ref": "#/definitions/internal_handler.NodeTaint"
                         }
                     }
                 ],
@@ -8089,12 +8089,12 @@ const docTemplate = `{
                 "taints": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/internal_handler.NodeTaintV2"
+                        "$ref": "#/definitions/internal_handler.NodeTaint"
                     }
                 }
             }
         },
-        "internal_handler.NodeTaintV2": {
+        "internal_handler.NodeTaint": {
             "type": "object",
             "properties": {
                 "effect": {

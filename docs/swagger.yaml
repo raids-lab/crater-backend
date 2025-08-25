@@ -648,10 +648,10 @@ definitions:
         type: array
       taints:
         items:
-          $ref: '#/definitions/internal_handler.NodeTaintV2'
+          $ref: '#/definitions/internal_handler.NodeTaint'
         type: array
     type: object
-  internal_handler.NodeTaintV2:
+  internal_handler.NodeTaint:
     properties:
       effect:
         type: string
@@ -4962,11 +4962,11 @@ paths:
       summary: 获取节点Pod信息
       tags:
       - Node
-  /v1/nodes/{name}/taintv2:
+  /v1/nodes/{name}/taint:
     delete:
       consumes:
       - application/json
-      description: 删除指定节点的污点（V2版本）
+      description: 删除指定节点的污点
       parameters:
       - description: 节点名称
         in: path
@@ -4978,7 +4978,7 @@ paths:
         name: data
         required: true
         schema:
-          $ref: '#/definitions/internal_handler.NodeTaintV2'
+          $ref: '#/definitions/internal_handler.NodeTaint'
       produces:
       - application/json
       responses:
@@ -5002,7 +5002,7 @@ paths:
     post:
       consumes:
       - application/json
-      description: 为指定节点添加污点（V2版本）
+      description: 为指定节点添加污点
       parameters:
       - description: 节点名称
         in: path
@@ -5014,7 +5014,7 @@ paths:
         name: data
         required: true
         schema:
-          $ref: '#/definitions/internal_handler.NodeTaintV2'
+          $ref: '#/definitions/internal_handler.NodeTaint'
       produces:
       - application/json
       responses:
