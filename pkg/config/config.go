@@ -20,7 +20,6 @@ type Config struct {
 	ServerAddr  string `json:"serverAddr"`  // The address the server endpoint binds to.
 	MetricsAddr string `json:"metricsAddr"` // The address the metric endpoint binds to.
 	ProbeAddr   string `json:"probeAddr"`   // The address the probe endpoint binds to.
-	HttpsProxy  string `json:"httpsProxy"`  // The https proxy for outbound requests.
 
 	Auth struct {
 		AccessTokenSecret  string `json:"accessTokenSecret"`
