@@ -69,6 +69,13 @@ func (b *imagePacker) generateEnvdContainer(data *EnvdReq) []corev1.Container {
 			Value: httpsProxy,
 		})
 	}
+	httpProxy := config.GetConfig().ImageBuildTools.BackendProxyConfig.HTTPProxy
+	if httpProxy != "" {
+		envVars = append(envVars, corev1.EnvVar{
+			Name:  "HTTP_PROXY",
+			Value: httpProxy,
+		})
+	}
 	envdContainer := []corev1.Container{
 		{
 			Name:  "buildkit",
