@@ -62,7 +62,7 @@ func (b *imagePacker) generateEnvdContainer(data *EnvdReq) []corev1.Container {
 			Value: fmt.Sprintf("$(NO_PROXY),%s,%s", buildkitdAmdNameSpace, backendHost),
 		},
 	}
-	httpsProxy := config.GetConfig().ImageBuildTools.BackendHttpsProxy
+	httpsProxy := config.GetConfig().ImageBuildTools.BackendProxyConfig.HTTPSProxy
 	if httpsProxy != "" {
 		envVars = append(envVars, corev1.EnvVar{
 			Name:  "HTTPS_PROXY",
