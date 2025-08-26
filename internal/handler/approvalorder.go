@@ -93,8 +93,8 @@ func (mgr *ApprovalOrderMgr) GetMyApprovalOrders(c *gin.Context) {
 		Where(ao.CreatorID.Eq(token.UserID)).
 		Find()
 	if err != nil {
-		klog.Errorf("查询创建的审批工单失败, userID: %d, err: %v", token.UserID, err)
-		resputil.Error(c, "获取我的审批工单失败", resputil.NotSpecified)
+		klog.Errorf("failed to query created approval orders, userID: %d, err: %v", token.UserID, err)
+		resputil.Error(c, "failed to get my approval orders", resputil.NotSpecified)
 		return
 	}
 
@@ -108,11 +108,11 @@ func unmarshalApprovalOrderContent(content datatypes.JSONType[model.ApprovalOrde
 	var result model.ApprovalOrderContent
 	jsonBytes, err := content.MarshalJSON()
 	if err != nil {
-		klog.Warningf("序列化审批工单内容失败: %v", err)
+		klog.Warningf("failed to marshal approval order content: %v", err)
 		return model.ApprovalOrderContent{}
 	}
 	if err := json.Unmarshal(jsonBytes, &result); err != nil {
-		klog.Warningf("解析审批工单内容失败: %v", err)
+		klog.Warningf("failed to unmarshal approval order content: %v", err)
 		return model.ApprovalOrderContent{}
 	}
 	return result
@@ -173,8 +173,8 @@ func (mgr *ApprovalOrderMgr) ListAllApprovalOrders(c *gin.Context) {
 		Order(ao.CreatedAt.Desc()).
 		Find()
 	if err != nil {
-		klog.Errorf("查询所有审批工单失败, err: %v", err)
-		resputil.Error(c, "获取所有审批工单失败", resputil.NotSpecified)
+		klog.Errorf("failed to query all approval orders, err: %v", err)
+		resputil.Error(c, "failed to list all approval orders", resputil.NotSpecified)
 		return
 	}
 
@@ -207,15 +207,15 @@ type ApprovalOrderreq struct {
 func (mgr *ApprovalOrderMgr) CreateApprovalOrder(c *gin.Context) {
 	var req ApprovalOrderreq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		klog.Errorf("请求参数绑定失败: %v", err)
-		resputil.Error(c, "请求参数错误", resputil.NotSpecified)
+		klog.Errorf("failed to bind request parameters: %v", err)
+		resputil.Error(c, "invalid request parameters", resputil.NotSpecified)
 		return
 	}
 
 	// 1. 获取当前用户信息
 	token := util.GetToken(c)
 	if token.UserID == 0 {
-		resputil.Error(c, "无法获取用户ID", resputil.NotSpecified)
+		resputil.Error(c, "cannot get user id", resputil.NotSpecified)
 		return
 	}
 
@@ -233,8 +233,8 @@ func (mgr *ApprovalOrderMgr) CreateApprovalOrder(c *gin.Context) {
 	}
 
 	if err := query.ApprovalOrder.WithContext(c).Create(&order); err != nil {
-		klog.Errorf("创建审批工单失败, userID: %d, err: %v", token.UserID, err)
-		resputil.Error(c, "创建审批工单失败", resputil.NotSpecified)
+		klog.Errorf("failed to create approval order, userID: %d, err: %v", token.UserID, err)
+		resputil.Error(c, "failed to create approval order", resputil.NotSpecified)
 		return
 	}
 	resputil.Success(c, "create approvalorder successfully")
@@ -271,19 +271,19 @@ func (mgr *ApprovalOrderMgr) UpdateApprovalOrder(c *gin.Context) {
 	var req UpdateApprovalOrder
 	var orderID ApprovalOrderIDReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		klog.Errorf("请求参数绑定失败: %v", err)
-		resputil.Error(c, "请求参数错误", resputil.NotSpecified)
+		klog.Errorf("failed to bind request parameters: %v", err)
+		resputil.Error(c, "invalid request parameters", resputil.NotSpecified)
 		return
 	}
 	if err := c.ShouldBindUri(&orderID); err != nil {
-		klog.Errorf("请求参数绑定失败: %v", err)
-		resputil.Error(c, "请求参数错误", resputil.NotSpecified)
+		klog.Errorf("failed to bind request parameters: %v", err)
+		resputil.Error(c, "invalid request parameters", resputil.NotSpecified)
 		return
 	}
 	// 1. 获取当前用户信息
 	token := util.GetToken(c)
 	if token.UserID == 0 {
-		resputil.Error(c, "无法获取用户ID", resputil.NotSpecified)
+		resputil.Error(c, "cannot get user id", resputil.NotSpecified)
 		return
 	}
 
@@ -303,11 +303,11 @@ func (mgr *ApprovalOrderMgr) UpdateApprovalOrder(c *gin.Context) {
 
 	info, err := query.ApprovalOrder.WithContext(c).Where(query.ApprovalOrder.ID.Eq(orderID.ID)).Updates(&order)
 	if err != nil {
-		klog.Errorf("更新审批工单失败, userID: %d, err: %v", token.UserID, err)
-		resputil.Error(c, "更新审批工单失败", resputil.NotSpecified)
+		klog.Errorf("failed to update approval order, userID: %d, err: %v", token.UserID, err)
+		resputil.Error(c, "failed to update approval order", resputil.NotSpecified)
 		return
 	}
-	klog.Infof("更新审批工单成功, affected rows: %d", info.RowsAffected)
+	klog.Infof("updated approval order successfully, affected rows: %d", info.RowsAffected)
 	resputil.Success(c, "update approvalorder successfully")
 }
 
@@ -331,15 +331,15 @@ func (mgr *ApprovalOrderMgr) DeleteApprovalOrder(c *gin.Context) {
 	token := util.GetToken(c)
 
 	if token.UserID == 0 {
-		resputil.Error(c, "无法获取用户ID", resputil.NotSpecified)
+		resputil.Error(c, "cannot get user id", resputil.NotSpecified)
 		return
 	}
 
 	// 2. 获取工单ID
 	var orderID ApprovalOrderIDReq
 	if err := c.ShouldBindUri(&orderID); err != nil {
-		klog.Errorf("请求参数绑定失败: %v", err)
-		resputil.Error(c, "请求参数错误", resputil.NotSpecified)
+		klog.Errorf("failed to bind request parameters: %v", err)
+		resputil.Error(c, "failed to bind request parameters", resputil.NotSpecified)
 		return
 	}
 
@@ -349,35 +349,35 @@ func (mgr *ApprovalOrderMgr) DeleteApprovalOrder(c *gin.Context) {
 		Where(ao.ID.Eq(orderID.ID)).
 		First()
 	if err != nil {
-		klog.Errorf("查询审批工单失败, userID: %d, orderID: %d, err: %v", token.UserID, orderID, err)
-		resputil.Error(c, "工单不存在", resputil.NotSpecified)
+		klog.Errorf("approval order not found, userID: %d, orderID: %d, err: %v", token.UserID, orderID, err)
+		resputil.Error(c, "approval order not found", resputil.NotSpecified)
 		return
 	}
 
 	// 4. 权限检查：只有创建者才能删除自己的工单
 	if existingOrder.CreatorID != token.UserID {
-		klog.Warningf("用户尝试删除非自己创建的工单, userID: %d, orderID: %d, creatorID: %d",
+		klog.Warningf("user attempted to delete an order not created by themselves, userID: %d, orderID: %d, creatorID: %d",
 			token.UserID, orderID, existingOrder.CreatorID)
-		resputil.Error(c, "没有权限删除此工单", resputil.NotSpecified)
+		resputil.Error(c, "permission denied to delete this approval order", resputil.NotSpecified)
 		return
 	}
 
 	// 6. 执行删除操作
 	result, err := ao.WithContext(c).Where(ao.ID.Eq(orderID.ID)).Delete(&model.ApprovalOrder{})
 	if err != nil {
-		klog.Errorf("删除审批工单失败, userID: %d, orderID: %d, err: %v", token.UserID, orderID, err)
-		resputil.Error(c, "删除审批工单失败", resputil.NotSpecified)
+		klog.Errorf("failed to delete approval order, userID: %d, orderID: %d, err: %v", token.UserID, orderID, err)
+		resputil.Error(c, "failed to delete approval order", resputil.NotSpecified)
 		return
 	}
 
 	// 7. 检查是否真的删除了记录
 	if result.RowsAffected == 0 {
-		klog.Warningf("删除操作未影响任何记录, userID: %d, orderID: %d", token.UserID, orderID)
-		resputil.Error(c, "工单删除失败，记录不存在", resputil.NotSpecified)
+		klog.Warningf("delete operation affected no records, userID: %d, orderID: %d", token.UserID, orderID)
+		resputil.Error(c, "delete failed, record not found", resputil.NotSpecified)
 		return
 	}
 
-	klog.Infof("删除审批工单成功, userID: %d, orderID: %d", token.UserID, orderID)
+	klog.Infof("deleted approval order successfully, userID: %d, orderID: %d", token.UserID, orderID)
 	resputil.Success(c, "delete approvalorder successfully")
 }
 
@@ -400,15 +400,15 @@ func (mgr *ApprovalOrderMgr) GetApprovalOrder(c *gin.Context) {
 	// 1. 获取当前用户信息
 	token := util.GetToken(c)
 	if token.UserID == 0 {
-		resputil.Error(c, "无法获取用户ID", resputil.NotSpecified)
+		resputil.Error(c, "can not get user ID", resputil.NotSpecified)
 		return
 	}
 
 	// 2. 获取工单ID
 	var orderID ApprovalOrderIDReq
 	if err := c.ShouldBindUri(&orderID); err != nil {
-		klog.Errorf("请求参数绑定失败: %v", err)
-		resputil.Error(c, "请求参数错误", resputil.NotSpecified)
+		klog.Errorf("failed to bind request parameters: %v", err)
+		resputil.Error(c, "invalid request parameters", resputil.NotSpecified)
 		return
 	}
 
@@ -420,16 +420,16 @@ func (mgr *ApprovalOrderMgr) GetApprovalOrder(c *gin.Context) {
 		Where(ao.ID.Eq(orderID.ID)).
 		First()
 	if err != nil {
-		klog.Errorf("查询审批工单失败, userID: %d, orderID: %d, err: %v", token.UserID, orderID.ID, err)
-		resputil.Error(c, "工单不存在", resputil.NotSpecified)
+		klog.Errorf("failed to query approval order, userID: %d, orderID: %d, err: %v", token.UserID, orderID, err)
+		resputil.Error(c, "approval order not found", resputil.NotSpecified)
 		return
 	}
 
 	// 4. 权限检查：只有创建者才能查看自己的工单
 	if order.CreatorID != token.UserID {
-		klog.Warningf("用户尝试查看非自己创建的工单, userID: %d, orderID: %d, creatorID: %d",
+		klog.Warningf("user attempted to view an order not created by themselves, userID: %d, orderID: %d, creatorID: %d",
 			token.UserID, orderID.ID, order.CreatorID)
-		resputil.Error(c, "没有权限查看此工单", resputil.NotSpecified)
+		resputil.Error(c, "permission denied to view this approval order", resputil.NotSpecified)
 		return
 	}
 
@@ -456,8 +456,8 @@ func (mgr *ApprovalOrderMgr) GetApprovalOrderAdmin(c *gin.Context) {
 	// 1. 获取工单ID
 	var orderID ApprovalOrderIDReq
 	if err := c.ShouldBindUri(&orderID); err != nil {
-		klog.Errorf("请求参数绑定失败: %v", err)
-		resputil.Error(c, "请求参数错误", resputil.NotSpecified)
+		klog.Errorf("bind uri error: %v", err)
+		resputil.Error(c, "uri error", resputil.NotSpecified)
 		return
 	}
 
@@ -469,8 +469,8 @@ func (mgr *ApprovalOrderMgr) GetApprovalOrderAdmin(c *gin.Context) {
 		Where(ao.ID.Eq(orderID.ID)).
 		First()
 	if err != nil {
-		klog.Errorf("管理员查询审批工单失败, orderID: %d, err: %v", orderID.ID, err)
-		resputil.Error(c, "工单不存在", resputil.NotSpecified)
+		klog.Errorf("admin failed to query approval order, orderID: %d, err: %v", orderID.ID, err)
+		resputil.Error(c, "approval order not found", resputil.NotSpecified)
 		return
 	}
 
