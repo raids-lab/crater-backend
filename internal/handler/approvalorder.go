@@ -36,6 +36,7 @@ func (mgr *ApprovalOrderMgr) RegisterPublic(_ *gin.RouterGroup) {}
 func (mgr *ApprovalOrderMgr) RegisterProtected(g *gin.RouterGroup) {
 	// RESTful 风格的路由设计
 	g.GET("", mgr.GetMyApprovalOrders)        // 获取我的审批工单列表
+	g.GET("/:id", mgr.GetApprovalOrder)       // 通过ID获取审批工单详情
 	g.POST("", mgr.CreateApprovalOrder)       // 创建审批工单
 	g.PUT("/:id", mgr.UpdateApprovalOrder)    // 更新审批工单
 	g.DELETE("/:id", mgr.DeleteApprovalOrder) // 删除审批工单
@@ -43,7 +44,8 @@ func (mgr *ApprovalOrderMgr) RegisterProtected(g *gin.RouterGroup) {
 
 func (mgr *ApprovalOrderMgr) RegisterAdmin(g *gin.RouterGroup) {
 	// 管理员接口
-	g.GET("", mgr.ListAllApprovalOrders) // 获取所有审批工单
+	g.GET("", mgr.ListAllApprovalOrders)     // 获取所有审批工单
+	g.GET("/:id", mgr.GetApprovalOrderAdmin) // 管理员通过ID获取审批工单详情
 }
 
 type ApprovalOrderResp struct {
@@ -184,9 +186,9 @@ type ApprovalOrderreq struct {
 	Name           string                    `json:"name" binding:"required"`
 	Type           model.ApprovalOrderType   `json:"type" binding:"required"`
 	Status         model.ApprovalOrderStatus `json:"status"`
-	TypeID         uint                      `json:"typeID" `        // 关联的ID，可能是数据集或任务ID
-	Reason         string                    `json:"reason" `        // 审批原因
-	ExtensionHours uint                      `json:"extensionHours"` // 延长小时数
+	TypeID         uint                      `json:"approvalorderTypeID" `        // 关联的ID，可能是数据集或任务ID
+	Reason         string                    `json:"approvalOrderReason" `        // 审批原因
+	ExtensionHours uint                      `json:"approvalOrderExtensionHours"` // 延长小时数
 }
 
 // swagger
@@ -242,14 +244,14 @@ type UpdateApprovalOrder struct {
 	Name           string                    `json:"name" binding:"required"`
 	Type           model.ApprovalOrderType   `json:"type" binding:"required"`
 	Status         model.ApprovalOrderStatus `json:"status"`
-	TypeID         uint                      `json:"typeID" `        // 关联的ID，可能是数据集或任务ID
-	Reason         string                    `json:"reason" `        // 审批原因
-	ExtensionHours uint                      `json:"extensionHours"` // 延长小时数
-	ReviewerID     uint                      `json:"reviewerID"`     // 审批人ID
-	ReviewNotes    string                    `json:"reviewNotes"`    // 审批备注
+	TypeID         uint                      `json:"approvalorderTypeID" `        // 关联的ID，可能是数据集或任务ID
+	Reason         string                    `json:"approvalOrderReason" `        // 审批原因
+	ExtensionHours uint                      `json:"approvalOrderExtensionHours"` // 延长小时数
+	ReviewerID     uint                      `json:"reviewerID"`                  // 审批人ID
+	ReviewNotes    string                    `json:"reviewNotes"`                 // 审批备注
 }
 type ApprovalOrderIDReq struct {
-	ID uint `json:"id" binding:"required"` // 工单ID
+	ID uint `uri:"id" binding:"required"` // 工单ID
 }
 
 // swagger
@@ -377,4 +379,131 @@ func (mgr *ApprovalOrderMgr) DeleteApprovalOrder(c *gin.Context) {
 
 	klog.Infof("删除审批工单成功, userID: %d, orderID: %d", token.UserID, orderID)
 	resputil.Success(c, "delete approvalorder successfully")
+}
+
+// swagger
+//
+//	@Summary		获取审批工单详情
+//	@Description	通过ID获取审批工单详情（仅限创建者）
+//	@Tags			approvalorder
+//	@Accept			json
+//	@Produce		json
+//	@Security		Bearer
+//	@Param			id path int true "工单ID"
+//	@Success		200 {object} resputil.Response[ApprovalOrderResp] "成功返回工单详情"
+//	@Failure		400 {object} resputil.Response[any] "请求参数错误"
+//	@Failure		403 {object} resputil.Response[any] "权限不足"
+//	@Failure		404 {object} resputil.Response[any] "工单不存在"
+//	@Failure		500 {object} resputil.Response[any] "服务器错误"
+//	@Router			/v1/approvalorder/{id} [get]
+func (mgr *ApprovalOrderMgr) GetApprovalOrder(c *gin.Context) {
+	// 1. 获取当前用户信息
+	token := util.GetToken(c)
+	if token.UserID == 0 {
+		resputil.Error(c, "无法获取用户ID", resputil.NotSpecified)
+		return
+	}
+
+	// 2. 获取工单ID
+	var orderID ApprovalOrderIDReq
+	if err := c.ShouldBindUri(&orderID); err != nil {
+		klog.Errorf("请求参数绑定失败: %v", err)
+		resputil.Error(c, "请求参数错误", resputil.NotSpecified)
+		return
+	}
+
+	// 3. 查询工单详情
+	ao := query.ApprovalOrder
+	order, err := ao.WithContext(c).
+		Preload(ao.Creator).
+		Preload(ao.Reviewer).
+		Where(ao.ID.Eq(orderID.ID)).
+		First()
+	if err != nil {
+		klog.Errorf("查询审批工单失败, userID: %d, orderID: %d, err: %v", token.UserID, orderID.ID, err)
+		resputil.Error(c, "工单不存在", resputil.NotSpecified)
+		return
+	}
+
+	// 4. 权限检查：只有创建者才能查看自己的工单
+	if order.CreatorID != token.UserID {
+		klog.Warningf("用户尝试查看非自己创建的工单, userID: %d, orderID: %d, creatorID: %d",
+			token.UserID, orderID.ID, order.CreatorID)
+		resputil.Error(c, "没有权限查看此工单", resputil.NotSpecified)
+		return
+	}
+
+	// 5. 转换为响应格式
+	result := convertToApprovalOrderResp(order)
+	resputil.Success(c, result)
+}
+
+// swagger
+//
+//	@Summary		管理员获取审批工单详情
+//	@Description	管理员通过ID获取任意审批工单详情
+//	@Tags			approvalorder
+//	@Accept			json
+//	@Produce		json
+//	@Security		Bearer
+//	@Param			id path int true "工单ID"
+//	@Success		200 {object} resputil.Response[ApprovalOrderResp] "成功返回工单详情"
+//	@Failure		400 {object} resputil.Response[any] "请求参数错误"
+//	@Failure		404 {object} resputil.Response[any] "工单不存在"
+//	@Failure		500 {object} resputil.Response[any] "服务器错误"
+//	@Router			/v1/admin/approvalorder/{id} [get]
+func (mgr *ApprovalOrderMgr) GetApprovalOrderAdmin(c *gin.Context) {
+	// 1. 获取工单ID
+	var orderID ApprovalOrderIDReq
+	if err := c.ShouldBindUri(&orderID); err != nil {
+		klog.Errorf("请求参数绑定失败: %v", err)
+		resputil.Error(c, "请求参数错误", resputil.NotSpecified)
+		return
+	}
+
+	// 2. 查询工单详情
+	ao := query.ApprovalOrder
+	order, err := ao.WithContext(c).
+		Preload(ao.Creator).
+		Preload(ao.Reviewer).
+		Where(ao.ID.Eq(orderID.ID)).
+		First()
+	if err != nil {
+		klog.Errorf("管理员查询审批工单失败, orderID: %d, err: %v", orderID.ID, err)
+		resputil.Error(c, "工单不存在", resputil.NotSpecified)
+		return
+	}
+
+	// 3. 转换为响应格式
+	result := convertToApprovalOrderResp(order)
+	resputil.Success(c, result)
+}
+
+// 新增辅助函数：将单个 ApprovalOrder 转换为 ApprovalOrderResp
+func convertToApprovalOrderResp(order *model.ApprovalOrder) ApprovalOrderResp {
+	resp := ApprovalOrderResp{
+		ID:          order.ID,
+		Name:        order.Name,
+		Type:        order.Type,
+		Status:      order.Status,
+		Content:     unmarshalApprovalOrderContent(order.Content),
+		ReviewNotes: order.ReviewNotes,
+		CreatedAt:   order.CreatedAt,
+		CreatorID:   order.CreatorID,
+		Creator: model.UserInfo{
+			Username: order.Creator.Name,
+			Nickname: order.Creator.Nickname,
+		},
+		ReviewerID: order.ReviewerID,
+	}
+
+	// 处理审批人信息
+	if order.ReviewerID != 0 {
+		resp.Reviewer = model.UserInfo{
+			Username: order.Reviewer.Name,
+			Nickname: order.Reviewer.Nickname,
+		}
+	}
+
+	return resp
 }
