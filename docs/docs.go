@@ -659,6 +659,38 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/admin/images/arch": {
+            "post": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "管理员模式下根据镜像ID更新镜像的架构列表",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ImagePack"
+                ],
+                "summary": "管理员更新镜像架构",
+                "parameters": [
+                    {
+                        "description": "更新镜像架构信息",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler_image.UpdateImageArchRequest"
+                        }
+                    }
+                ],
+                "responses": {}
+            }
+        },
         "/v1/admin/images/deletekaniko": {
             "post": {
                 "security": [
@@ -3590,6 +3622,38 @@ const docTemplate = `{
                     "ImagePack"
                 ],
                 "summary": "获取未被分享该镜像的账户",
+                "responses": {}
+            }
+        },
+        "/v1/images/arch": {
+            "post": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "根据镜像ID更新镜像的架构列表",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ImagePack"
+                ],
+                "summary": "更新镜像架构",
+                "parameters": [
+                    {
+                        "description": "更新镜像架构信息",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler_image.UpdateImageArchRequest"
+                        }
+                    }
+                ],
                 "responses": {}
             }
         },
@@ -8721,6 +8785,24 @@ const docTemplate = `{
                 },
                 "value": {
                     "type": "string"
+                }
+            }
+        },
+        "internal_handler_image.UpdateImageArchRequest": {
+            "type": "object",
+            "required": [
+                "archs",
+                "id"
+            ],
+            "properties": {
+                "archs": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "id": {
+                    "type": "integer"
                 }
             }
         },
