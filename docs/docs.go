@@ -9000,7 +9000,7 @@ const docTemplate = `{
                     }
                 },
                 "image": {
-                    "type": "string"
+                    "$ref": "#/definitions/internal_handler_vcjob.ImageBaseInfo"
                 },
                 "name": {
                     "type": "string"
@@ -9062,6 +9062,20 @@ const docTemplate = `{
                 "IngressType",
                 "NodePortType"
             ]
+        },
+        "internal_handler_vcjob.ImageBaseInfo": {
+            "type": "object",
+            "properties": {
+                "archs": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "imageLink": {
+                    "type": "string"
+                }
+            }
         },
         "internal_handler_vcjob.JobTokenResp": {
             "type": "object",
