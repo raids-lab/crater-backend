@@ -2,12 +2,14 @@ package handler
 
 import (
 	"fmt"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/exp/slog"
 	"gorm.io/datatypes"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -64,6 +66,7 @@ func (mgr *AccountMgr) RegisterAdmin(g *gin.RouterGroup) {
 	g.GET("userIn/:aid", mgr.GetUserInProject)
 	g.GET("userOutOf/:aid", mgr.GetUserOutOfProject)
 	g.DELETE(":aid/:uid", mgr.DeleteUserProject)
+	g.PUT("userIn", mgr.PutUserInProject)
 }
 
 type (
@@ -923,6 +926,72 @@ func (mgr *AccountMgr) GetUserInProject(c *gin.Context) {
 	}
 
 	resputil.Success(c, resp)
+}
+
+type PutUserInProjectReq struct {
+	AccountId  uint                                  `json:"aid" binding:"required"`
+	UserId     uint                                  `json:"uid" binding:"required"`
+	Role       *string                               `json:"role"`
+	AccessMode *string                               `json:"accessmode" gorm:"access_mode"`
+	Quota      *datatypes.JSONType[model.QueueQuota] `json:"quota"`
+}
+
+type PutUserInProjectResp struct {
+	AccountId uint `json:"aid" binding:"required"`
+	UserId    uint `json:"uid" binding:"required"`
+}
+
+func (mgr *AccountMgr) PutUserInProject(c *gin.Context) {
+	handler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{})
+	logger := slog.New(handler)
+	req := &PutUserInProjectReq{}
+	if err := c.ShouldBindJSON(req); err != nil {
+		resputil.Error(c, fmt.Sprintf("validate PutUserInProject parameters failed, detail: %v", err), resputil.NotSpecified)
+		return
+	}
+	uq := query.UserAccount
+
+	var (
+		role, access uint64
+		err          error
+		updates      = make(map[string]any)
+	)
+
+	if req.Role != nil {
+		if role, err = strconv.ParseUint(*req.Role, 10, 8); err != nil {
+			resputil.Error(c, fmt.Sprintf("validate PutUserInProject parameters failed, detail: %v", err), resputil.NotSpecified)
+			return
+		}
+		updates["role"] = model.Role(uint8(role))
+	}
+
+	if req.AccessMode != nil {
+		if access, err = strconv.ParseUint(*req.AccessMode, 10, 8); err != nil {
+			resputil.Error(c, fmt.Sprintf("validate PutUserInProject parameters failed, detail: %v", err), resputil.NotSpecified)
+			return
+		}
+		updates["access_mode"] = model.AccessMode(uint8(access))
+	}
+	if req.Quota != nil {
+		updates["quota"] = *req.Quota
+	}
+
+	info, err := uq.
+		WithContext(c).
+		Where(uq.AccountID.Eq(req.AccountId), uq.UserID.Eq(req.UserId)).
+		Updates(updates)
+
+	logger.InfoContext(c, fmt.Sprintf("[AccountMgr.PutUserInProject] update info=%+v, err=%+v", info, err))
+	if err != nil {
+		resputil.Error(c, fmt.Sprintf("failed to create or update user in project, detail: %v", err), resputil.NotSpecified)
+		return
+	}
+
+	ret := &PutUserInProjectResp{
+		AccountId: req.AccountId,
+		UserId:    req.UserId,
+	}
+	resputil.Success(c, ret)
 }
 
 // / GetUserOutOfProject godoc
