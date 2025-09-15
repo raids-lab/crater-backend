@@ -950,13 +950,11 @@ func (mgr *AccountMgr) PutUserInProject(c *gin.Context) {
 		return
 	}
 	uq := query.UserAccount
-
 	var (
 		role, access uint64
 		err          error
 		updates      = make(map[string]any)
 	)
-
 	if req.Role != nil {
 		if role, err = strconv.ParseUint(*req.Role, 10, 8); err != nil {
 			resputil.Error(c, fmt.Sprintf("validate PutUserInProject parameters failed, detail: %v", err), resputil.NotSpecified)
@@ -964,7 +962,6 @@ func (mgr *AccountMgr) PutUserInProject(c *gin.Context) {
 		}
 		updates["role"] = model.Role(uint8(role))
 	}
-
 	if req.AccessMode != nil {
 		if access, err = strconv.ParseUint(*req.AccessMode, 10, 8); err != nil {
 			resputil.Error(c, fmt.Sprintf("validate PutUserInProject parameters failed, detail: %v", err), resputil.NotSpecified)
@@ -973,6 +970,36 @@ func (mgr *AccountMgr) PutUserInProject(c *gin.Context) {
 		updates["access_mode"] = model.AccessMode(uint8(access))
 	}
 	if req.Quota != nil {
+		for k, v := range req.Quota.Data().Deserved {
+			if i, ok := v.AsInt64(); !ok || i < 0 {
+				resputil.Error(
+					c,
+					fmt.Sprintf("validate PutUserInProject parameters failed, detail: quota in deserved %s is negative", k),
+					resputil.NotSpecified,
+				)
+				return
+			}
+		}
+		for k, v := range req.Quota.Data().Guaranteed {
+			if i, ok := v.AsInt64(); !ok || i < 0 {
+				resputil.Error(
+					c,
+					fmt.Sprintf("validate PutUserInProject parameters failed, detail: quota in guaranteed %s is negative", k),
+					resputil.NotSpecified,
+				)
+				return
+			}
+		}
+		for k, v := range req.Quota.Data().Capability {
+			if i, ok := v.AsInt64(); !ok || i < 0 {
+				resputil.Error(
+					c,
+					fmt.Sprintf("validate PutUserInProject parameters failed, detail: quota in capability %s is negative", k),
+					resputil.NotSpecified,
+				)
+				return
+			}
+		}
 		updates["quota"] = *req.Quota
 	}
 
