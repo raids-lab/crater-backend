@@ -2,14 +2,12 @@ package handler
 
 import (
 	"fmt"
-	"os"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"golang.org/x/exp/slog"
 	"gorm.io/datatypes"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -942,8 +940,6 @@ type PutUserInProjectResp struct {
 }
 
 func (mgr *AccountMgr) PutUserInProject(c *gin.Context) {
-	handler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{})
-	logger := slog.New(handler)
 	req := &PutUserInProjectReq{}
 	if err := c.ShouldBindJSON(req); err != nil {
 		resputil.Error(c, fmt.Sprintf("validate PutUserInProject parameters failed, detail: %v", err), resputil.NotSpecified)
@@ -970,55 +966,38 @@ func (mgr *AccountMgr) PutUserInProject(c *gin.Context) {
 		updates["access_mode"] = model.AccessMode(uint8(access))
 	}
 	if req.Quota != nil {
-		for k, v := range req.Quota.Data().Deserved {
-			if i, ok := v.AsInt64(); !ok || i < 0 {
-				resputil.Error(
-					c,
-					fmt.Sprintf("validate PutUserInProject parameters failed, detail: quota in deserved %s is negative", k),
-					resputil.NotSpecified,
-				)
-				return
-			}
+		validResourceFormat := "validate PutUserInProject parameters failed, detail: %s"
+		if err := checkResource(c, req.Quota.Data().Guaranteed); err != nil {
+			resputil.Error(c, fmt.Sprintf(validResourceFormat, err.Error()), resputil.NotSpecified)
 		}
-		for k, v := range req.Quota.Data().Guaranteed {
-			if i, ok := v.AsInt64(); !ok || i < 0 {
-				resputil.Error(
-					c,
-					fmt.Sprintf("validate PutUserInProject parameters failed, detail: quota in guaranteed %s is negative", k),
-					resputil.NotSpecified,
-				)
-				return
-			}
+		if err := checkResource(c, req.Quota.Data().Deserved); err != nil {
+			resputil.Error(c, fmt.Sprintf(validResourceFormat, err.Error()), resputil.NotSpecified)
 		}
-		for k, v := range req.Quota.Data().Capability {
-			if i, ok := v.AsInt64(); !ok || i < 0 {
-				resputil.Error(
-					c,
-					fmt.Sprintf("validate PutUserInProject parameters failed, detail: quota in capability %s is negative", k),
-					resputil.NotSpecified,
-				)
-				return
-			}
+		if err := checkResource(c, req.Quota.Data().Capability); err != nil {
+			resputil.Error(c, fmt.Sprintf(validResourceFormat, err.Error()), resputil.NotSpecified)
 		}
 		updates["quota"] = *req.Quota
 	}
 
-	info, err := uq.
-		WithContext(c).
-		Where(uq.AccountID.Eq(req.AccountId), uq.UserID.Eq(req.UserId)).
-		Updates(updates)
-
-	logger.InfoContext(c, fmt.Sprintf("[AccountMgr.PutUserInProject] update info=%+v, err=%+v", info, err))
+	_, err = uq.WithContext(c).Where(uq.AccountID.Eq(req.AccountId), uq.UserID.Eq(req.UserId)).Updates(updates)
 	if err != nil {
 		resputil.Error(c, fmt.Sprintf("failed to create or update user in project, detail: %v", err), resputil.NotSpecified)
 		return
 	}
-
 	ret := &PutUserInProjectResp{
 		AccountId: req.AccountId,
 		UserId:    req.UserId,
 	}
 	resputil.Success(c, ret)
+}
+
+func checkResource(_ *gin.Context, ls v1.ResourceList) error {
+	for k, v := range ls {
+		if i, ok := v.AsInt64(); ok && i < 0 {
+			return fmt.Errorf("resource %s invalid, is %d", k, i)
+		}
+	}
+	return nil
 }
 
 // / GetUserOutOfProject godoc
