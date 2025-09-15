@@ -12,6 +12,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	scheduling "volcano.sh/apis/pkg/apis/scheduling/v1beta1"
@@ -987,6 +988,7 @@ func (mgr *AccountMgr) PutUserInProject(c *gin.Context) {
 		resputil.Error(c, fmt.Sprintf("failed to create or update user in project, detail: %v", err), resputil.NotSpecified)
 		return
 	}
+	klog.Infof("user %d in account %d updated, data:%+v", req.UserId, req.AccountId, updates)
 	ret := &PutUserInProjectResp{
 		AccountId: req.AccountId,
 		UserId:    req.UserId,
