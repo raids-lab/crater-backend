@@ -63,7 +63,7 @@ func (mgr *VolcanojobMgr) CreateJupyterJob(c *gin.Context) {
 	}
 
 	if err := aitaskctl.CheckJupyterLimitBeforeCreateJupyter(c, token.UserID, token.AccountID); err != nil {
-		resputil.Error(c, err.Error(), resputil.NotSpecified)
+		resputil.Error(c, err.Error(), resputil.InsufficientResources)
 		return
 	}
 

@@ -27,6 +27,9 @@ const (
 	// Container related
 	ServiceSshdNotFound ErrorCode = 40401
 
+	// Insufficient Resources
+	InsufficientResources ErrorCode = 40901
+
 	// Indicates laziness of the developer
 	// Frontend will directly print the message without any translation
 	NotSpecified ErrorCode = 99999
