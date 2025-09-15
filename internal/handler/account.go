@@ -65,7 +65,7 @@ func (mgr *AccountMgr) RegisterAdmin(g *gin.RouterGroup) {
 	g.GET("userIn/:aid", mgr.GetUserInProject)
 	g.GET("userOutOf/:aid", mgr.GetUserOutOfProject)
 	g.DELETE(":aid/:uid", mgr.DeleteUserProject)
-	g.PUT("userIn", mgr.PutUserInProject)
+	g.PUT("userIn/:aid", mgr.PutUserInProject)
 }
 
 type (
@@ -927,8 +927,11 @@ func (mgr *AccountMgr) GetUserInProject(c *gin.Context) {
 	resputil.Success(c, resp)
 }
 
+type PutUserInProjectUriReq struct {
+	AccountId uint `uri:"aid" binding:"required"`
+}
+
 type PutUserInProjectReq struct {
-	AccountId  uint                                  `json:"aid" binding:"required"`
 	UserId     uint                                  `json:"uid" binding:"required"`
 	Role       *string                               `json:"role"`
 	AccessMode *string                               `json:"accessmode" gorm:"access_mode"`
@@ -941,7 +944,12 @@ type PutUserInProjectResp struct {
 }
 
 func (mgr *AccountMgr) PutUserInProject(c *gin.Context) {
+	uriReq := PutUserInProjectUriReq{}
 	req := &PutUserInProjectReq{}
+	if err := c.ShouldBindUri(&uriReq); err != nil {
+		resputil.Error(c, fmt.Sprintf("validate PutUserInProject parameters failed, detail: %v", err), resputil.NotSpecified)
+		return
+	}
 	if err := c.ShouldBindJSON(req); err != nil {
 		resputil.Error(c, fmt.Sprintf("validate PutUserInProject parameters failed, detail: %v", err), resputil.NotSpecified)
 		return
@@ -983,14 +991,14 @@ func (mgr *AccountMgr) PutUserInProject(c *gin.Context) {
 		updates["quota"] = *req.Quota
 	}
 
-	_, err = uq.WithContext(c).Where(uq.AccountID.Eq(req.AccountId), uq.UserID.Eq(req.UserId)).Updates(updates)
+	_, err = uq.WithContext(c).Where(uq.AccountID.Eq(uriReq.AccountId), uq.UserID.Eq(req.UserId)).Updates(updates)
 	if err != nil {
 		resputil.Error(c, fmt.Sprintf("failed to create or update user in project, detail: %v", err), resputil.NotSpecified)
 		return
 	}
-	klog.Infof("user %d in account %d updated, data:%+v", req.UserId, req.AccountId, updates)
+	klog.Infof("user %d in account %d updated, data:%+v", req.UserId, uriReq.AccountId, updates)
 	ret := &PutUserInProjectResp{
-		AccountId: req.AccountId,
+		AccountId: uriReq.AccountId,
 		UserId:    req.UserId,
 	}
 	resputil.Success(c, ret)
