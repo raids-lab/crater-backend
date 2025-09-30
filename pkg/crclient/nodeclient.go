@@ -119,12 +119,10 @@ const (
 )
 
 func getNodeStatus(node *corev1.Node) corev1.NodeConditionType {
-	if node.Spec.Unschedulable {
-		return NodeStatusUnschedulable
-	}
-
 	if isNodeOccupied(node) {
 		return NodeStatusOccupied
+	} else if node.Spec.Unschedulable {
+		return NodeStatusUnschedulable
 	}
 
 	return getNodeCondition(node) // 节点正常时返回 NodeReady
