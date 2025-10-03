@@ -130,7 +130,7 @@ func getNodeStatus(node *corev1.Node) corev1.NodeConditionType {
 
 func isNodeOccupied(node *corev1.Node) bool {
 	for _, taint := range node.Spec.Taints {
-		taintStr := taintToString(taint)
+		taintStr := taint.ToString()
 		if strings.Contains(taintStr, "crater.raids.io/account=") && strings.HasSuffix(taintStr, ":NoSchedule") {
 			return true
 		}
@@ -165,20 +165,15 @@ func getNodeCondition(node *corev1.Node) corev1.NodeConditionType {
 func taintsToStringArray(taints []corev1.Taint) []string {
 	var taintStrings []string
 	for _, taint := range taints {
-		taintStrings = append(taintStrings, taintToString(taint))
+		taintStrings = append(taintStrings, taint.ToString())
 	}
 	return taintStrings
-}
-
-// taintsToString将节点的taint转化成字符串
-func taintToString(taint corev1.Taint) string {
-	return fmt.Sprintf("%s=%s:%s", taint.Key, taint.Value, taint.Effect)
 }
 
 func taintsToString(taints []corev1.Taint) string {
 	var taintStrings []string
 	for _, taint := range taints {
-		taintStrings = append(taintStrings, taintToString(taint))
+		taintStrings = append(taintStrings, taint.ToString())
 	}
 	return strings.Join(taintStrings, ",")
 }
