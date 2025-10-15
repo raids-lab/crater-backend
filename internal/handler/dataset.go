@@ -39,6 +39,7 @@ func (mgr *DatasetMgr) RegisterPublic(_ *gin.RouterGroup) {}
 
 func (mgr *DatasetMgr) RegisterProtected(g *gin.RouterGroup) {
 	g.GET("/mydataset", mgr.GetDatasets)
+	g.GET("/:datasetId", mgr.GetDatasetByID)
 	g.GET("/:datasetId/usersNotIn", mgr.ListUsersOutOfDataset)
 	g.GET("/:datasetId/usersIn", mgr.ListUserOfDataset)
 	g.GET("/:datasetId/queuesNotIn", mgr.ListQueuesOutOfDataset)
