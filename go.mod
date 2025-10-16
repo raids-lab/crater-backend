@@ -17,7 +17,9 @@ require (
 	github.com/mittwald/goharbor-client/v5 v5.6.4
 	github.com/prometheus/client_golang v1.22.0
 	github.com/prometheus/common v0.65.0
+	github.com/robfig/cron/v3 v3.0.0
 	github.com/samber/lo v1.51.0
+	github.com/stretchr/testify v1.10.0
 	github.com/swaggo/files v1.0.1
 	github.com/swaggo/gin-swagger v1.6.0
 	github.com/swaggo/swag v1.16.3
@@ -109,6 +111,7 @@ require (
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
+	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/quic-go/qpack v0.5.1 // indirect
