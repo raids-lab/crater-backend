@@ -1,18 +1,17 @@
 package operations
 
 import (
+	"encoding/json"
 	"fmt"
-	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/robfig/cron/v3"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	"k8s.io/utils/ptr"
 
 	cj "github.com/raids-lab/crater/internal/handler/cronjob"
 
+	"github.com/raids-lab/crater/dao/model"
 	"github.com/raids-lab/crater/internal/resputil"
 )
 
@@ -38,31 +37,16 @@ type CronjobConfigs struct {
 //	@Router			/v1/operations/cronjob [put]
 func (mgr *OperationsMgr) UpdateCronjobConfig(c *gin.Context) {
 	var req CronjobConfigs
-	var err error
-	if err = c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBindJSON(&req); err != nil {
 		resputil.Error(c, err.Error(), resputil.NotSpecified)
 		return
 	}
-	fmt.Println(req)
-	var funcJob func()
-	switch req.Name {
-	case CLEAN_LONG_TIME_CRON_JOB_NAME:
-		funcJob, err = mgr.CreateHandleLongTimeRunningJobsCronJob(c)
-	case CLEAN_LOW_GPU_UTIL_CRON_JOB_NAME:
-		funcJob, err = mgr.CreateHandleLowGPUUsageJobsCronJob(c)
-	case CLEAN_WAITING_JUPYTER:
-		funcJob, err = mgr.CreateHandleWaitingJupyterJobsCronJob(c)
-	default:
-		err = fmt.Errorf("invalid cronjob name: %s", req.Name)
-		klog.Error(err.Error())
-		resputil.Error(c, err.Error(), resputil.NotSpecified)
-		return
-	}
+	configJson, err := json.Marshal(req.Configs)
 	if err != nil {
 		resputil.Error(c, err.Error(), resputil.NotSpecified)
-		return
 	}
-	if err := cj.GetCronJobManager().UpdateJob(req.Name, req.Schedule, req.Suspend, (*cron.FuncJob)(&funcJob)); err != nil {
+	jobType := model.CronJobType(req.Name)
+	if err := cj.GetCronJobManager().UpdateJob(c, req.Name, jobType, req.Schedule, req.Suspend, ptr.To(string(configJson))); err != nil {
 		resputil.Error(c, err.Error(), resputil.NotSpecified)
 		return
 	}
@@ -167,89 +151,4 @@ func (mgr *OperationsMgr) getCronjobConfigs(c *gin.Context) ([]CronjobConfigs, e
 		})
 	}
 	return cronjobConfigList, nil
-}
-
-func (mgr *OperationsMgr) createCronjobHandler(
-	c *gin.Context,
-	jobName string,
-	configStruct any,
-	handler func(any) (any, error),
-) (func(), error) {
-	return func() {
-		namespace := CRONJOBNAMESPACE
-		conf := &v1.ConfigMap{}
-		err := mgr.client.Get(c, client.ObjectKey{
-			Namespace: namespace,
-			Name:      jobName,
-		}, conf)
-		if err != nil {
-			klog.Errorf("failed to get configmap %s: %v", jobName, err)
-			resputil.Error(c, fmt.Sprintf("failed to get configmap: %v", err), resputil.NotSpecified)
-			return
-		}
-
-		if err := parseConfigToStruct(conf.Data, configStruct); err != nil {
-			klog.Errorf("failed to parse config for %s: %v", jobName, err)
-			resputil.Error(c, fmt.Sprintf("failed to parse config: %v", err), resputil.NotSpecified)
-			return
-		}
-
-		result, err := handler(configStruct)
-		if err != nil {
-			klog.Errorf("failed to execute handler for %s: %v", jobName, err)
-			resputil.Error(c, err.Error(), resputil.NotSpecified)
-			return
-		}
-
-		resputil.Success(c, result)
-	}, nil
-}
-
-func (mgr *OperationsMgr) CreateHandleLongTimeRunningJobsCronJob(c *gin.Context) (func(), error) {
-	config := &LongTimeJobConfig{}
-	return mgr.createCronjobHandler(c, CLEAN_LONG_TIME_CRON_JOB_NAME, config, func(cfg any) (any, error) {
-		conf := cfg.(*LongTimeJobConfig)
-		if conf.BatchDays < 0 || conf.InteractiveDays < 0 {
-			return nil, fmt.Errorf("invalid parameter (batchDays: %d, interactiveDays: %d)", conf.BatchDays, conf.InteractiveDays)
-		}
-
-		batchJobTimeout := time.Duration(conf.BatchDays) * 24 * time.Hour
-		interactiveJobTimeout := time.Duration(conf.InteractiveDays) * 24 * time.Hour
-		defaultRemindTime := 24 * time.Hour
-
-		remindJobList, deletionJobList := mgr.handleLongTimeRunningJobs(c, batchJobTimeout, interactiveJobTimeout, defaultRemindTime)
-		return map[string][]string{
-			"reminded": remindJobList,
-			"deleted":  deletionJobList,
-		}, nil
-	})
-}
-
-func (mgr *OperationsMgr) CreateHandleLowGPUUsageJobsCronJob(c *gin.Context) (func(), error) {
-	config := &LowGPUUtilJobConfig{}
-	return mgr.createCronjobHandler(c, CLEAN_LOW_GPU_UTIL_CRON_JOB_NAME, config, func(cfg any) (any, error) {
-		conf := cfg.(*LowGPUUtilJobConfig)
-		if conf.TimeRange <= 0 || conf.WaitTime <= 0 {
-			return nil, fmt.Errorf("invalid parameter (timeRange: %d, waitTime: %d)", conf.TimeRange, conf.WaitTime)
-		}
-
-		remindJobList, deletionJobList := mgr.handleLowGPUUsageJobs(c, conf.TimeRange, conf.WaitTime, conf.Util)
-		return map[string][]string{
-			"reminded": remindJobList,
-			"deleted":  deletionJobList,
-		}, nil
-	})
-}
-
-func (mgr *OperationsMgr) CreateHandleWaitingJupyterJobsCronJob(c *gin.Context) (func(), error) {
-	config := &WaitingJupyterConfig{}
-	return mgr.createCronjobHandler(c, CLEAN_WAITING_JUPYTER, config, func(cfg any) (any, error) {
-		conf := cfg.(*WaitingJupyterConfig)
-		if conf.WaitMinutes < 0 {
-			return nil, fmt.Errorf("waitMinutes must be greater than or equal to 0")
-		}
-
-		deletedJobs := mgr.deleteUnscheduledJupyterJobs(c, conf.WaitMinutes)
-		return deletedJobs, nil
-	})
 }

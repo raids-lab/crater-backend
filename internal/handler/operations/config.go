@@ -14,7 +14,6 @@ const (
 	CLEAN_WAITING_JUPYTER            = "clean-waiting-jupyter"
 )
 
-//nolint:gofmt // ignore failed
 type CronjobHandler interface {
 	Execute(c *gin.Context, params map[string]string) (any, error)
 }

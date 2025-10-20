@@ -24,8 +24,10 @@ type OperationsMgr struct {
 	taskController aitaskctl.TaskControllerInterface
 }
 
+var instance *OperationsMgr
+
 func NewOperationsMgr(conf *handler.RegisterConfig) handler.Manager {
-	return &OperationsMgr{
+	instance = &OperationsMgr{
 		name:           "operations",
 		client:         conf.Client,
 		kubeClient:     conf.KubeClient,
@@ -33,6 +35,11 @@ func NewOperationsMgr(conf *handler.RegisterConfig) handler.Manager {
 		taskService:    aitaskctl.NewDBService(),
 		taskController: conf.AITaskCtrl,
 	}
+	return instance
+}
+
+func GetOperationsMgrInstance() *OperationsMgr {
+	return instance
 }
 
 func (mgr *OperationsMgr) GetName() string { return mgr.name }
@@ -53,4 +60,9 @@ func (mgr *OperationsMgr) RegisterAdmin(g *gin.RouterGroup) {
 	g.PUT("/cronjob", mgr.UpdateCronjobConfig)
 	g.PUT("/add/locktime", mgr.AddLockTime)
 	g.PUT("/clear/locktime", mgr.ClearLockTime)
+
+	// Cronjob 记录查询 API (可选功能，在运行 make curd 后取消注释)
+	// g.GET("/cronjob/records", mgr.GetCronjobRecords)
+	// g.GET("/cronjob/records/:id", mgr.GetCronjobRecordDetail)
+	// g.GET("/cronjob/statistics", mgr.GetCronjobStatistics)
 }
