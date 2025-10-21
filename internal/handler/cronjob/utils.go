@@ -27,10 +27,10 @@ func MergeURLWithQuery(baseURL string, queryParams map[string]string) (string, e
 	return u.String(), nil
 }
 
-func GetAdminTokenByLogin(_ *gin.Context, serverHandler http.Handler) (string, error) {
+func GetAdminTokenByLogin(_ *gin.Context, username, password string, serverHandler http.Handler) (string, error) {
 	authReq := httptest.NewRequest(
 		"POST", "/api/auth/login",
-		bytes.NewBuffer([]byte(`{"auth":"normal","username":"admin-test","password":"451415"}`)),
+		bytes.NewBuffer([]byte(fmt.Sprintf("{\"auth\":\"normal\",\"username\":%q,\"password\":%q}", username, password))),
 	)
 	authReq.Header.Set("Content-Type", "application/json")
 	authReq.Header.Set("accept", "application/json")

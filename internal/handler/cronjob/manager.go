@@ -2,6 +2,7 @@ package cronjob
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -15,10 +16,14 @@ import (
 	"github.com/samber/lo"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/raids-lab/crater/internal/resputil"
+
+	corev1 "k8s.io/api/core/v1"
 
 	"github.com/raids-lab/crater/dao/model"
 	"github.com/raids-lab/crater/dao/query"
@@ -34,7 +39,6 @@ type CronJobManager struct {
 	name          string
 	client        client.Client
 	cron          *cron.Cron
-	entries       map[string]*JobEntry
 	serverHandler http.Handler
 	mu            sync.RWMutex
 }
@@ -47,18 +51,14 @@ func init() {
 type JobEntry struct {
 	EntryID cron.EntryID
 	Name    string
-	Spec    string
-	Type    model.CronJobType
-	Suspend bool
 }
 
 func NewCronJobManager(c *handler.RegisterConfig) handler.Manager {
 	once.Do(func() {
 		instance = &CronJobManager{
-			name:    "cronjob",
-			client:  c.Client,
-			cron:    cron.New(cron.WithLocation(time.Local)),
-			entries: make(map[string]*JobEntry),
+			name:   "cronjob",
+			client: c.Client,
+			cron:   cron.New(cron.WithLocation(time.Local)),
 		}
 	})
 	return instance
@@ -86,7 +86,6 @@ func (cm *CronJobManager) addCronJob(
 	ctx *gin.Context,
 	jobName string,
 	jobSpec string,
-	suspend bool,
 	jobType model.CronJobType,
 	jobConfig datatypes.JSON,
 ) (cron.EntryID, error) {
@@ -107,13 +106,6 @@ func (cm *CronJobManager) addCronJob(
 			klog.Error(err)
 			return -1, err
 		}
-		cm.entries[jobName] = &JobEntry{
-			EntryID: entryID,
-			Name:    jobName,
-			Spec:    jobSpec,
-			Suspend: suspend,
-			Type:    jobType,
-		}
 	} else {
 		return -1, fmt.Errorf("unsupported cron job type: %s", jobType)
 	}
@@ -123,34 +115,41 @@ func (cm *CronJobManager) addCronJob(
 func (cm *CronJobManager) UpdateJob(
 	ctx *gin.Context,
 	name string,
-	jobType model.CronJobType,
-	spec string,
-	suspend bool,
+	jobType *model.CronJobType,
+	spec *string,
+	suspend *bool,
 	config *string,
 ) error {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
-	err := query.GetDB().Transaction(func(tx *gorm.DB) error {
-		cur, err := cm.getCurrentJobConfigFromDB(tx, name)
+
+	var (
+		cur    *model.CronJobConfig
+		update *model.CronJobConfig
+		err    error
+	)
+
+	err = query.GetDB().Transaction(func(tx *gorm.DB) error {
+		cur, err = cm.getCurrentJobConfigFromDB(tx, name)
 		if err != nil {
 			return err
 		}
 
-		update := cm.prepareUpdateConfig(jobType, spec, suspend, cur.Config, config)
+		update = cm.prepareUpdateConfig(cur, jobType, spec, suspend, config)
 
 		// Handle suspend state transition
-		if cm.shouldSuspendJob(cur.Suspend, suspend) {
+		if suspend != nil && cm.shouldSuspendJob(cur.GetSuspend(), *suspend) {
 			return cm.handleJobSuspension(tx, name, cur, update)
 		}
 
 		// Handle active job (not suspended)
-		if !suspend {
-			return cm.handleActiveJob(ctx, tx, name, cur, update, jobType, spec, config)
+		if suspend != nil && !(*suspend) {
+			return cm.handleActiveJob(ctx, tx, name, cur, update)
 		}
 
-		return nil
+		return tx.Model(cur).Where(query.CronJobConfig.Name.Eq(name)).Updates(update).Error
 	})
-	return err
+	return nil
 }
 
 // getCurrentJobConfigFromDB retrieves current job configuration from database
@@ -166,19 +165,29 @@ func (cm *CronJobManager) getCurrentJobConfigFromDB(tx *gorm.DB, name string) (*
 
 // prepareUpdateConfig creates update configuration
 func (cm *CronJobManager) prepareUpdateConfig(
-	jobType model.CronJobType,
-	spec string,
-	suspend bool,
-	currentConfig datatypes.JSON,
+	cur *model.CronJobConfig,
+	jobType *model.CronJobType,
+	spec *string,
+	suspend *bool,
 	config *string,
 ) *model.CronJobConfig {
 	update := &model.CronJobConfig{
-		Type:    jobType,
-		Spec:    spec,
-		Suspend: suspend,
-		Config:  currentConfig,
+		Name:    cur.Name,
+		Type:    cur.Type,
+		Spec:    cur.Spec,
+		Suspend: cur.Suspend,
+		Config:  cur.Config,
 	}
-	if config != nil {
+	if jobType != nil {
+		update.Type = *jobType
+	}
+	if spec != nil && *spec != "" {
+		update.Spec = *spec
+	}
+	if suspend != nil {
+		update.Suspend = suspend
+	}
+	if config != nil && *config != "" {
 		update.Config = datatypes.JSON(*config)
 	}
 	return update
@@ -196,105 +205,55 @@ func (cm *CronJobManager) handleJobSuspension(
 	cur *model.CronJobConfig,
 	update *model.CronJobConfig,
 ) error {
-	jobEntry, exists := cm.entries[name]
-	if !exists {
-		return nil
-	}
-
-	cm.cron.Remove(jobEntry.EntryID)
-	delete(cm.entries, name)
 	update.EntryID = -1
-	return tx.Model(cur).Where(query.CronJobConfig.Name.Eq(name)).Updates(update).Error
+	if err := tx.Model(cur).Where(query.CronJobConfig.Name.Eq(name)).Updates(update).Error; err != nil {
+		klog.Error(err)
+		return err
+	}
+	cm.cron.Remove(cron.EntryID(cur.EntryID))
+	return nil
 }
 
-// handleActiveJob handles job activation or update
+// handleActiveJob handles job need to active (not suspended)
 func (cm *CronJobManager) handleActiveJob(
 	ctx *gin.Context,
 	tx *gorm.DB,
 	name string,
 	cur *model.CronJobConfig,
 	update *model.CronJobConfig,
-	jobType model.CronJobType,
-	spec string,
-	config *string,
 ) error {
-	// Job was suspended, now activating
-	if cur.Suspend {
-		return cm.activateJob(ctx, tx, name, cur, update, jobType, spec)
+	if cur.GetSuspend() {
+		if cm.jobNeedsUpdate(cur, update) {
+			cm.cron.Remove(cron.EntryID(cur.EntryID))
+		}
 	}
-
-	// Job is already active, check if needs update
-	return cm.updateActiveJobIfNeeded(ctx, tx, name, cur, update, jobType, spec, config)
-}
-
-// activateJob activates a previously suspended job
-func (cm *CronJobManager) activateJob(
-	ctx *gin.Context,
-	tx *gorm.DB,
-	name string,
-	cur *model.CronJobConfig,
-	update *model.CronJobConfig,
-	jobType model.CronJobType,
-	spec string,
-) error {
-	entryID, err := cm.addCronJob(ctx, name, spec, false, jobType, update.Config)
+	entryID, err := cm.addCronJob(ctx, name, update.Spec, update.Type, update.Config)
 	if err != nil {
 		klog.Error(err)
 		return err
 	}
 	update.EntryID = int(entryID)
-	return tx.Model(cur).Where(query.CronJobConfig.Name.Eq(name)).Updates(update).Error
-}
-
-// updateActiveJobIfNeeded updates an active job if configuration changed
-func (cm *CronJobManager) updateActiveJobIfNeeded(
-	ctx *gin.Context,
-	tx *gorm.DB,
-	name string,
-	cur *model.CronJobConfig,
-	update *model.CronJobConfig,
-	jobType model.CronJobType,
-	spec string,
-	config *string,
-) error {
-	jobEntry, exists := cm.entries[name]
-	if !exists {
-		return nil
-	}
-
-	if !cm.jobNeedsUpdate(jobEntry, cur, jobType, spec, config) {
-		return nil
-	}
-
-	// Remove old entry and add new one
-	cm.cron.Remove(jobEntry.EntryID)
-	entryID, err := cm.addCronJob(ctx, name, spec, false, jobType, update.Config)
-	if err != nil {
+	if err := tx.Model(cur).Where(query.CronJobConfig.Name.Eq(name)).Updates(update).Error; err != nil {
+		err := fmt.Errorf("DB failed to update cron job config for job %s: %w", name, err)
+		cm.cron.Remove(entryID)
 		klog.Error(err)
 		return err
 	}
-	update.EntryID = int(entryID)
-	return tx.Model(cur).Where(query.CronJobConfig.Name.Eq(name)).Updates(update).Error
+	return nil
 }
 
 // jobNeedsUpdate checks if job configuration has changed
 func (cm *CronJobManager) jobNeedsUpdate(
-	jobEntry *JobEntry,
 	cur *model.CronJobConfig,
-	jobType model.CronJobType,
-	spec string,
-	config *string,
+	update *model.CronJobConfig,
 ) bool {
-	if jobEntry.EntryID != cron.EntryID(cur.EntryID) {
+	if cur.Type != update.Type {
 		return true
 	}
-	if jobEntry.Type != jobType {
+	if cur.Spec != update.Spec {
 		return true
 	}
-	if jobEntry.Spec != spec {
-		return true
-	}
-	if config != nil && string(cur.Config) != *config {
+	if update.Config != nil && !bytes.Equal(cur.Config, update.Config) {
 		return true
 	}
 	return false
@@ -312,7 +271,7 @@ func (cm *CronJobManager) syncCronJob() {
 		klog.Infof("CronJobManager.syncCronJob: loaded %d non-suspended cron jobs from database", len(configs))
 
 		for _, conf := range configs {
-			entryID, err := cm.addCronJob(nil, conf.Name, conf.Spec, conf.Suspend, conf.Type, conf.Config)
+			entryID, err := cm.addCronJob(nil, conf.Name, conf.Spec, conf.Type, conf.Config)
 			if err != nil {
 				err := fmt.Errorf("CronJobManager.addCronJob: failed to add cron job %s with spec %s: %w", conf.Name, conf.Spec, err)
 				klog.Error(err)
@@ -338,6 +297,14 @@ func (cm *CronJobManager) syncCronJob() {
 
 	cm.cron.Start()
 	klog.Info("CronJobManager.syncCronJob: cron scheduler started")
+}
+
+func (cm *CronJobManager) GetAllCronJobs(ctx *gin.Context) ([]*model.CronJobConfig, error) {
+	var configs []*model.CronJobConfig
+	if err := query.GetDB().WithContext(ctx).Find(&configs).Error; err != nil {
+		return nil, err
+	}
+	return configs, nil
 }
 
 func (cm *CronJobManager) Stop() {
@@ -371,7 +338,13 @@ func (mgr *CronJobManager) NewHTTPCallCronJob(
 		return nil, err
 	}
 
-	accessToken, err := GetAdminTokenByLogin(ctx, mgr.serverHandler)
+	username, password, err := mgr.GetConfigMapCredentials(ctx)
+	if err != nil {
+		err := fmt.Errorf("CronJobManager.GetConfigMapCredentials failed: %w", err)
+		klog.Error(err)
+		return nil, err
+	}
+	accessToken, err := GetAdminTokenByLogin(ctx, username, password, mgr.serverHandler)
 	if err != nil {
 		err := fmt.Errorf("GetAdminTokenByLogin failed: %w", err)
 		klog.Error(err)
@@ -398,7 +371,7 @@ func (mgr *CronJobManager) NewHTTPCallCronJob(
 		rec := &model.CronJobRecord{
 			Name:        jobName,
 			ExecuteTime: executeTime,
-			Success:     success,
+			Success:     ptr.To(success),
 			Message:     "",
 			JobData:     datatypes.JSON(body),
 		}
@@ -409,6 +382,27 @@ func (mgr *CronJobManager) NewHTTPCallCronJob(
 	}
 
 	return funcJob, nil
+}
+
+func (cm *CronJobManager) GetConfigMapCredentials(_ *gin.Context) (username, password string, err error) {
+	configMap := &corev1.ConfigMap{}
+	namespacedName := types.NamespacedName{
+		Namespace: "crater",
+		Name:      "crater-cronjob-config",
+	}
+
+	if err := cm.client.Get(context.Background(), namespacedName, configMap); err != nil {
+		return "", "", fmt.Errorf("failed to get ConfigMap: %w", err)
+	}
+
+	username = configMap.Data["USERNAME"]
+	password = configMap.Data["PASSWORD"]
+
+	if username == "" || password == "" {
+		return "", "", fmt.Errorf("USERNAME or PASSWORD not found in ConfigMap data")
+	}
+
+	return username, password, nil
 }
 
 func (mgr *CronJobManager) GetName() string { return mgr.name }

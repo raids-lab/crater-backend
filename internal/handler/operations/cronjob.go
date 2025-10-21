@@ -2,11 +2,9 @@ package operations
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/gin-gonic/gin"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/klog/v2"
+	"github.com/samber/lo"
 	"k8s.io/utils/ptr"
 
 	cj "github.com/raids-lab/crater/internal/handler/cronjob"
@@ -16,10 +14,11 @@ import (
 )
 
 type CronjobConfigs struct {
-	Name     string            `json:"name"`
-	Schedule string            `json:"schedule"`
-	Suspend  bool              `json:"suspend"`
-	Configs  map[string]string `json:"configs"`
+	Name     string         `json:"name"`
+	Type     string         `json:"type"`
+	Schedule string         `json:"schedule"`
+	Suspend  bool           `json:"suspend"`
+	Configs  map[string]any `json:"configs"`
 }
 
 // UpdateCronjobConfig godoc
@@ -41,59 +40,31 @@ func (mgr *OperationsMgr) UpdateCronjobConfig(c *gin.Context) {
 		resputil.Error(c, err.Error(), resputil.NotSpecified)
 		return
 	}
-	configJson, err := json.Marshal(req.Configs)
-	if err != nil {
-		resputil.Error(c, err.Error(), resputil.NotSpecified)
+
+	var (
+		jobTypePtr *model.CronJobType
+		specPtr    *string
+		configPtr  *string
+	)
+	if req.Type != "" {
+		jobTypePtr = ptr.To(model.CronJobType(req.Type))
 	}
-	jobType := model.CronJobType(req.Name)
-	if err := cj.GetCronJobManager().UpdateJob(c, req.Name, jobType, req.Schedule, req.Suspend, ptr.To(string(configJson))); err != nil {
+	if req.Schedule != "" {
+		specPtr = ptr.To(req.Schedule)
+	}
+
+	if len(req.Configs) > 0 {
+		configJson, err := json.Marshal(req.Configs)
+		if err != nil {
+			resputil.Error(c, err.Error(), resputil.NotSpecified)
+		}
+		configPtr = ptr.To(string(configJson))
+	}
+	if err := cj.GetCronJobManager().UpdateJob(c, req.Name, jobTypePtr, specPtr, &req.Suspend, configPtr); err != nil {
 		resputil.Error(c, err.Error(), resputil.NotSpecified)
 		return
 	}
 	resputil.Success(c, "Successfully update cronjob config")
-}
-
-//nolint:unused // depreciated
-func (mgr *OperationsMgr) updateCronjobConfig(c *gin.Context, cronjobConfigs CronjobConfigs) error {
-	namespace := CRONJOBNAMESPACE
-	cronjob, err := mgr.kubeClient.BatchV1().CronJobs(namespace).Get(c, cronjobConfigs.Name, metav1.GetOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to get cronjob %s: %w", cronjobConfigs.Name, err)
-	}
-
-	// 更新 schedule
-	cronjob.Spec.Schedule = cronjobConfigs.Schedule
-
-	// 更新 suspend 字段
-	*cronjob.Spec.Suspend = cronjobConfigs.Suspend
-
-	// CronJob 确保只有一个 container
-	if len(cronjob.Spec.JobTemplate.Spec.Template.Spec.Containers) == 0 {
-		return fmt.Errorf("cronjob %s has no container", cronjobConfigs.Name)
-	}
-	container := &cronjob.Spec.JobTemplate.Spec.Template.Spec.Containers[0]
-
-	// 检查并更新 env 变量，确保传入的 env 必须已经存在
-	for key, newVal := range cronjobConfigs.Configs {
-		found := false
-		for idx, env := range container.Env {
-			if env.Name == key {
-				container.Env[idx].Value = newVal
-				found = true
-				break
-			}
-		}
-		if !found {
-			return fmt.Errorf("container %s missing env key: %s", container.Name, key)
-		}
-	}
-
-	// 更新 CronJob 对象
-	_, err = mgr.kubeClient.BatchV1().CronJobs(namespace).Update(c, cronjob, metav1.UpdateOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to update cronjob %s: %w", cronjobConfigs.Name, err)
-	}
-	return nil
 }
 
 // GetCronjobConfigs godoc
@@ -109,46 +80,24 @@ func (mgr *OperationsMgr) updateCronjobConfig(c *gin.Context, cronjobConfigs Cro
 //	@Failure		500	{object}	resputil.Response[any]	"Other errors"
 //	@Router			/v1/operations/cronjob [get]
 func (mgr *OperationsMgr) GetCronjobConfigs(c *gin.Context) {
-	configs, err := mgr.getCronjobConfigs(c)
+	jobs, err := cj.GetCronJobManager().GetAllCronJobs(c)
 	if err != nil {
 		resputil.Error(c, err.Error(), resputil.NotSpecified)
 		return
 	}
-	resputil.Success(c, configs)
-}
-
-func (mgr *OperationsMgr) getCronjobConfigs(c *gin.Context) ([]CronjobConfigs, error) {
-	// get all cronjobs in namespace crater, label crater.raids-lab.io/component=cronjob
-	// apiVersion: batch/v1, kind: CronJob
-	cronjobConfigList := make([]CronjobConfigs, 0)
-	namespace := CRONJOBNAMESPACE
-	labelSelector := fmt.Sprintf("%s=%s", CRAONJOBLABELKEY, CRONJOBLABELVALUE)
-	cronjobs, err := mgr.kubeClient.BatchV1().CronJobs(namespace).List(c, metav1.ListOptions{
-		LabelSelector: labelSelector,
+	configs := lo.Map(jobs, func(job *model.CronJobConfig, _ int) CronjobConfigs {
+		config := make(map[string]any)
+		if err := json.Unmarshal(job.Config, &config); err != nil {
+			config = map[string]any{}
+		}
+		ret := CronjobConfigs{
+			Name:     job.Name,
+			Type:     string(job.Type),
+			Schedule: job.Spec,
+			Suspend:  job.GetSuspend(),
+			Configs:  config,
+		}
+		return ret
 	})
-	if err != nil {
-		klog.Errorf("Failed to get cronjobs: %v", err)
-		return nil, err
-	}
-	for i := range cronjobs.Items {
-		cronjob := &cronjobs.Items[i]
-		configs := make(map[string]string)
-
-		// cronjob 确保只有一个 container
-		containers := cronjob.Spec.JobTemplate.Spec.Template.Spec.Containers
-		if len(containers) != 1 {
-			continue
-		}
-		container := containers[0]
-		for _, env := range container.Env {
-			configs[env.Name] = env.Value
-		}
-		cronjobConfigList = append(cronjobConfigList, CronjobConfigs{
-			Name:     cronjob.Name,
-			Configs:  configs,
-			Suspend:  *cronjob.Spec.Suspend,
-			Schedule: cronjob.Spec.Schedule,
-		})
-	}
-	return cronjobConfigList, nil
+	resputil.Success(c, configs)
 }
