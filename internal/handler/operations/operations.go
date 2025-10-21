@@ -60,9 +60,4 @@ func (mgr *OperationsMgr) RegisterAdmin(g *gin.RouterGroup) {
 	g.PUT("/cronjob", mgr.UpdateCronjobConfig)
 	g.PUT("/add/locktime", mgr.AddLockTime)
 	g.PUT("/clear/locktime", mgr.ClearLockTime)
-
-	// Cronjob 记录查询 API (可选功能，在运行 make curd 后取消注释)
-	// g.GET("/cronjob/records", mgr.GetCronjobRecords)
-	// g.GET("/cronjob/records/:id", mgr.GetCronjobRecordDetail)
-	// g.GET("/cronjob/statistics", mgr.GetCronjobStatistics)
 }

@@ -8972,9 +8972,7 @@
             "properties": {
                 "configs": {
                     "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
+                    "additionalProperties": {}
                 },
                 "name": {
                     "type": "string"
@@ -8984,6 +8982,9 @@
                 },
                 "suspend": {
                     "type": "boolean"
+                },
+                "type": {
+                    "type": "string"
                 }
             }
         },

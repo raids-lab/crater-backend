@@ -8980,9 +8980,7 @@ const docTemplate = `{
             "properties": {
                 "configs": {
                     "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
+                    "additionalProperties": {}
                 },
                 "name": {
                     "type": "string"
@@ -8992,6 +8990,9 @@ const docTemplate = `{
                 },
                 "suspend": {
                     "type": "boolean"
+                },
+                "type": {
+                    "type": "string"
                 }
             }
         },
