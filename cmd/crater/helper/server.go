@@ -14,7 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
-	"github.com/raids-lab/crater/internal/handler/cronjob"
+	"github.com/raids-lab/crater/internal/handler/operations"
 
 	"github.com/raids-lab/crater/internal"
 	"github.com/raids-lab/crater/internal/handler"
@@ -84,9 +84,9 @@ func (sr *ServerRunner) StartServer(registerConfig *handler.RegisterConfig) {
 	backend := internal.Register(registerConfig)
 
 	// Set server handler to CronJobManager for in-process HTTP calls
-	if cronMgr := cronjob.GetCronJobManager(); cronMgr != nil {
-		cronMgr.InitServerHandler(backend)
-		klog.Info("Set server handler to CronJobManager for in-process HTTP calls")
+	if operationManager := operations.GetOperationsMgrInstance(); operationManager != nil {
+		operationManager.InitServerHandler(backend)
+		klog.Info("Set server handler to OperationManager for in-process HTTP calls")
 	}
 
 	// reference: https://gin-gonic.com/en/docs/examples/graceful-restart-or-stop

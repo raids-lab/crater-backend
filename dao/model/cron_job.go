@@ -28,7 +28,8 @@ func (c CronJobType) String() string {
 }
 
 const (
-	CronJobTypeHTTPCall CronJobType = "http_call"
+	CronJobTypeHTTPCall     CronJobType = "http_call"
+	CronJobTypeInternalFunc CronJobType = "internal_function"
 )
 
 func GetAllCronJobTypes() []CronJobType {
@@ -38,6 +39,7 @@ func GetAllCronJobTypes() []CronJobType {
 }
 
 type CronJobConfig struct {
+	gorm.Model
 	Name    string         `gorm:"type:varchar(128);not null;index;unique;comment:Cronjob配置名称" json:"name"`
 	Type    CronJobType    `gorm:"type:varchar(128);not null;index;comment:Cronjob类型" json:"type"`
 	Spec    string         `gorm:"type:varchar(128);not null;index;comment:Cron调度规范" json:"spec"`

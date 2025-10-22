@@ -573,9 +573,10 @@ func main() {
 			},
 		},
 		{
-			ID: "202510192200",
+			ID: "202510202200",
 			Migrate: func(tx *gorm.DB) error {
 				type CronJobConfig struct {
+					gorm.Model
 					Name    string            `gorm:"type:varchar(128);not null;index;unique;comment:Cronjob配置名称" json:"name"`
 					Type    model.CronJobType `gorm:"type:varchar(128);not null;index;comment:Cronjob类型" json:"type"`
 					Spec    string            `gorm:"type:varchar(128);not null;index;comment:Cron调度规范" json:"spec"`
