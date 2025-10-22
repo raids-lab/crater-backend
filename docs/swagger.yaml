@@ -2022,39 +2022,6 @@ paths:
       summary: 管理员更新镜像的任务类型
       tags:
       - ImagePack
-  /v1/admin/operations/cleanup:
-    delete:
-      consumes:
-      - application/json
-      description: Delete batch jobs older than 4 days and interactive jobs older
-        than 1 day
-      parameters:
-      - in: query
-        name: batchDays
-        type: integer
-      - in: query
-        name: interactiveDays
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Success
-          schema:
-            $ref: '#/definitions/github_com_raids-lab_crater_internal_resputil.Response-any'
-        "400":
-          description: Request parameter error
-          schema:
-            $ref: '#/definitions/github_com_raids-lab_crater_internal_resputil.Response-any'
-        "500":
-          description: Other errors
-          schema:
-            $ref: '#/definitions/github_com_raids-lab_crater_internal_resputil.Response-any'
-      security:
-      - Bearer: []
-      summary: Cleanup jobs based on type and duration
-      tags:
-      - Operations
   /v1/admin/projects:
     get:
       consumes:
