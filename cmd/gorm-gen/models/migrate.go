@@ -573,7 +573,7 @@ func main() {
 			},
 		},
 		{
-			ID: "202510202200",
+			ID: "202510202499",
 			Migrate: func(tx *gorm.DB) error {
 				type CronJobConfig struct {
 					gorm.Model
@@ -584,7 +584,44 @@ func main() {
 					Config  datatypes.JSON    `gorm:"type:jsonb;comment:Cronjob配置数据" json:"config"`
 					EntryID int               `gorm:"type:int;comment:Cronjob标识ID" json:"entry_id"`
 				}
-				return tx.Table("cron_job_configs").Migrator().CreateTable(&CronJobConfig{})
+				if err := tx.Table("cron_job_configs").Migrator().CreateTable(&CronJobConfig{}); err != nil {
+					return err
+				}
+
+				initialConfigs := []*CronJobConfig{
+					{
+						Name:    "clean-long-time-job",
+						Type:    model.CronJobTypeInternalFunc,
+						Spec:    "*/5 * * * *",
+						Suspend: true,
+						Config:  datatypes.JSON(`{"batchDays": "4", "interactiveDays": 4}`),
+						EntryID: -1,
+					},
+					{
+						Name:    "clean-low-gpu-util-job",
+						Type:    model.CronJobTypeInternalFunc,
+						Spec:    "*/5 * * * *",
+						Suspend: true,
+						Config:  datatypes.JSON(`{"util": 0, "waitTime": 30, "timeRange": 90}`),
+						EntryID: -1,
+					},
+					{
+						Name:    "clean-waiting-jupyter",
+						Type:    model.CronJobTypeInternalFunc,
+						Spec:    "*/5 * * * *",
+						Suspend: true,
+						Config:  datatypes.JSON(`{"waitMinitues": 5}`),
+						EntryID: -1,
+					},
+				}
+
+				for _, config := range initialConfigs {
+					if err := tx.Where("name = ?", config.Name).FirstOrCreate(&config).Error; err != nil {
+						return err
+					}
+				}
+
+				return nil
 			},
 			Rollback: func(tx *gorm.DB) error {
 				return tx.Migrator().DropTable("cron_job_configs")
