@@ -5,14 +5,12 @@
 package operations
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
-	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -40,7 +38,7 @@ type CleanLowGPUUsageRequest struct {
 	Util      int `form:"util"`
 }
 
-func (mgr *OperationsMgr) HandleLowGPUUsageJobs(c *gin.Context, req *CleanLowGPUUsageRequest) (datatypes.JSON, error) {
+func (mgr *OperationsMgr) HandleLowGPUUsageJobs(c *gin.Context, req *CleanLowGPUUsageRequest) (map[string][]string, error) {
 	if req == nil {
 		err := errors.New("invalid request")
 		return nil, err
@@ -52,10 +50,10 @@ func (mgr *OperationsMgr) HandleLowGPUUsageJobs(c *gin.Context, req *CleanLowGPU
 
 	remindJobList, deletionJobList := mgr.handleLowGPUUsageJobs(c, req.TimeRange, req.WaitTime, req.Util)
 
-	ret, _ := json.Marshal(map[string][]string{
+	ret := map[string][]string{
 		"reminded": remindJobList,
 		"deleted":  deletionJobList,
-	})
+	}
 	return ret, nil
 }
 
@@ -438,15 +436,15 @@ type CancelWaitingJupyterRequest struct {
 	WaitMinitues int `form:"waitMinitues" binding:"required"`
 }
 
-func (mgr *OperationsMgr) HandleWaitingJupyterJobs(c *gin.Context, req *CancelWaitingJupyterRequest) (datatypes.JSON, error) {
+func (mgr *OperationsMgr) HandleWaitingJupyterJobs(c *gin.Context, req *CancelWaitingJupyterRequest) (map[string][]string, error) {
 	if req == nil {
 		err := errors.New("invalid request")
 		return nil, err
 	}
 	deletedJobs := mgr.deleteUnscheduledJupyterJobs(c, req.WaitMinitues)
-	ret, _ := json.Marshal(map[string][]string{
+	ret := map[string][]string{
 		"deleted": deletedJobs,
-	})
+	}
 	return ret, nil
 }
 

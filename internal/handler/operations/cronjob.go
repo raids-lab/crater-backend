@@ -552,3 +552,36 @@ func (cm *OperationsMgr) GetAllCronJobs(ctx *gin.Context) ([]*model.CronJobConfi
 	}
 	return configs, nil
 }
+
+type DeleteCronJobRecordsReq struct {
+	Name       *string   `json:"name"`
+	BeforeTime time.Time `json:"beforeTime" binding:"required"`
+}
+
+func (cm *OperationsMgr) DeleteCronjobRecords(c *gin.Context) {
+	var req DeleteCronJobRecordsReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		klog.Error(err)
+		c.JSON(http.StatusBadRequest, err.Error())
+		return
+	}
+
+	tx := query.GetDB().WithContext(c)
+
+	if req.Name != nil {
+		tx = tx.Where(query.CronJobRecord.Name.Eq(*req.Name))
+	}
+
+	tx = tx.Where(query.CronJobRecord.ExecuteTime.Lt(req.BeforeTime))
+
+	res := tx.Delete(&model.CronJobRecord{})
+	if err := res.Error; err != nil {
+		klog.Error(err)
+		resputil.BadRequestError(c, err.Error())
+		return
+	}
+
+	resputil.Success(c, map[string]string{
+		"deleted": fmt.Sprintf("%d", res.RowsAffected),
+	})
+}
