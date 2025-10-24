@@ -28,6 +28,10 @@ func newCronJobConfig(db *gorm.DB, opts ...gen.DOOption) cronJobConfig {
 
 	tableName := _cronJobConfig.cronJobConfigDo.TableName()
 	_cronJobConfig.ALL = field.NewAsterisk(tableName)
+	_cronJobConfig.ID = field.NewUint(tableName, "id")
+	_cronJobConfig.CreatedAt = field.NewTime(tableName, "created_at")
+	_cronJobConfig.UpdatedAt = field.NewTime(tableName, "updated_at")
+	_cronJobConfig.DeletedAt = field.NewField(tableName, "deleted_at")
 	_cronJobConfig.Name = field.NewString(tableName, "name")
 	_cronJobConfig.Type = field.NewString(tableName, "type")
 	_cronJobConfig.Spec = field.NewString(tableName, "spec")
@@ -43,13 +47,17 @@ func newCronJobConfig(db *gorm.DB, opts ...gen.DOOption) cronJobConfig {
 type cronJobConfig struct {
 	cronJobConfigDo cronJobConfigDo
 
-	ALL     field.Asterisk
-	Name    field.String // Cronjob配置名称
-	Type    field.String // Cronjob类型
-	Spec    field.String // Cron调度规范
-	Suspend field.Bool   // 是否暂停执行
-	Config  field.Field  // Cronjob配置数据
-	EntryID field.Int    // Cronjob标识ID
+	ALL       field.Asterisk
+	ID        field.Uint
+	CreatedAt field.Time
+	UpdatedAt field.Time
+	DeletedAt field.Field
+	Name      field.String // Cronjob配置名称
+	Type      field.String // Cronjob类型
+	Spec      field.String // Cron调度规范
+	Suspend   field.Bool   // 是否暂停执行
+	Config    field.Field  // Cronjob配置数据
+	EntryID   field.Int    // Cronjob标识ID
 
 	fieldMap map[string]field.Expr
 }
@@ -66,6 +74,10 @@ func (c cronJobConfig) As(alias string) *cronJobConfig {
 
 func (c *cronJobConfig) updateTableName(table string) *cronJobConfig {
 	c.ALL = field.NewAsterisk(table)
+	c.ID = field.NewUint(table, "id")
+	c.CreatedAt = field.NewTime(table, "created_at")
+	c.UpdatedAt = field.NewTime(table, "updated_at")
+	c.DeletedAt = field.NewField(table, "deleted_at")
 	c.Name = field.NewString(table, "name")
 	c.Type = field.NewString(table, "type")
 	c.Spec = field.NewString(table, "spec")
@@ -100,7 +112,11 @@ func (c *cronJobConfig) GetFieldByName(fieldName string) (field.OrderExpr, bool)
 }
 
 func (c *cronJobConfig) fillFieldMap() {
-	c.fieldMap = make(map[string]field.Expr, 6)
+	c.fieldMap = make(map[string]field.Expr, 10)
+	c.fieldMap["id"] = c.ID
+	c.fieldMap["created_at"] = c.CreatedAt
+	c.fieldMap["updated_at"] = c.UpdatedAt
+	c.fieldMap["deleted_at"] = c.DeletedAt
 	c.fieldMap["name"] = c.Name
 	c.fieldMap["type"] = c.Type
 	c.fieldMap["spec"] = c.Spec

@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/robfig/cron/v3"
 	"github.com/samber/lo"
+	"golang.org/x/sync/errgroup"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	"k8s.io/apimachinery/pkg/types"
@@ -121,6 +122,7 @@ type HttpCall struct {
 	Payload map[string]any    `json:"payload"`
 }
 
+// addCronJob adds a cron job to the scheduler based on job type
 func (cm *OperationsMgr) addCronJob(
 	ctx *gin.Context,
 	jobName string,
@@ -149,6 +151,7 @@ func (cm *OperationsMgr) addCronJob(
 	return entryID, nil
 }
 
+// addInternalFuncCronJob adds an internal function type cron job to the scheduler
 func (cm *OperationsMgr) addInternalFuncCronJob(
 	_ *gin.Context,
 	jobName string,
@@ -242,6 +245,7 @@ func (cm *OperationsMgr) wrapInternalJobFunc(jobName string, handler func() (any
 	}
 }
 
+// addHTTPCallCronJob adds an HTTP call type cron job to the scheduler
 func (cm *OperationsMgr) addHTTPCallCronJob(
 	ctx *gin.Context,
 	jobName string,
@@ -266,6 +270,7 @@ func (cm *OperationsMgr) addHTTPCallCronJob(
 	return entryID, nil
 }
 
+// updateJobConfig updates the configuration of an existing cron job
 func (cm *OperationsMgr) updateJobConfig(
 	ctx *gin.Context,
 	name string,
@@ -553,31 +558,173 @@ func (cm *OperationsMgr) GetAllCronJobs(ctx *gin.Context) ([]*model.CronJobConfi
 	return configs, nil
 }
 
-type DeleteCronJobRecordsReq struct {
-	Name       *string   `json:"name"`
-	BeforeTime time.Time `json:"beforeTime" binding:"required"`
+func (mgr *OperationsMgr) GetCronjobNames(c *gin.Context) {
+	names := make([]string, 0)
+	if err := query.GetDB().WithContext(c).Model(&model.CronJobConfig{}).Select("name").Find(&names).Error; err != nil {
+		klog.Error(err)
+		resputil.Error(c, err.Error(), resputil.ServiceError)
+		return
+	}
+	resputil.Success(c, names)
 }
 
-func (cm *OperationsMgr) DeleteCronjobRecords(c *gin.Context) {
-	var req DeleteCronJobRecordsReq
-	if err := c.ShouldBindJSON(&req); err != nil {
+func (mgr *OperationsMgr) GetCronjobRecordTimeRange(c *gin.Context) {
+	var result struct {
+		StartTime time.Time
+		EndTime   time.Time
+	}
+	err := query.
+		GetDB().
+		WithContext(c).
+		Model(&model.CronJobRecord{}).
+		Select("min(execute_time) as start_time", "max(execute_time) as end_time").
+		Scan(&result).
+		Error
+	if err != nil {
+		klog.Error(err)
+		resputil.Error(c, err.Error(), resputil.ServiceError)
+		return
+	}
+	// 最小时间向下取整到当天的 00:00:00
+	startTime := result.StartTime.AddDate(0, 0, -1)
+	endTime := result.EndTime.AddDate(0, 0, 1)
+
+	resputil.Success(c, map[string]any{
+		"startTime": startTime,
+		"endTime":   endTime,
+	})
+}
+
+type GetCronJobRecordsReq struct {
+	Name      []string   `json:"name" form:"name"`
+	StartTime *time.Time `json:"startTime" form:"startTime"`
+	EndTime   *time.Time `json:"endTime" form:"endTime"`
+	Success   *bool      `json:"success" form:"success"`
+
+	PageNum  int `json:"pageNum" form:"pageNum"`
+	PageSize int `json:"pageSize" form:"pageSize"`
+}
+
+func (cm *OperationsMgr) GetCronjobRecords(c *gin.Context) {
+	req := &GetCronJobRecordsReq{}
+	if err := c.ShouldBindJSON(req); err != nil {
 		klog.Error(err)
 		c.JSON(http.StatusBadRequest, err.Error())
 		return
 	}
 
-	tx := query.GetDB().WithContext(c)
-
-	if req.Name != nil {
-		tx = tx.Where(query.CronJobRecord.Name.Eq(*req.Name))
+	pageNum := 1
+	pageSize := 10
+	if req.PageNum > 0 {
+		pageNum = req.PageNum
+	}
+	if req.PageSize > 0 {
+		pageSize = req.PageSize
 	}
 
-	tx = tx.Where(query.CronJobRecord.ExecuteTime.Lt(req.BeforeTime))
+	var (
+		records []*model.CronJobRecord
+		total   int64
+	)
+	g, groupCtx := errgroup.WithContext(c)
+	g.SetLimit(MAX_GO_ROUTINE_NUM)
+	g.Go(func() error {
+		tx := query.GetDB().WithContext(groupCtx)
+		if len(req.Name) > 0 {
+			tx = tx.Where(query.CronJobRecord.Name.In(req.Name...))
+		}
+		if req.StartTime != nil {
+			tx = tx.Where(query.CronJobRecord.ExecuteTime.Gte(*req.StartTime))
+		}
+		if req.EndTime != nil {
+			tx = tx.Where(query.CronJobRecord.ExecuteTime.Lte(*req.EndTime))
+		}
+		if req.Success != nil {
+			tx = tx.Where(query.CronJobRecord.Success.Is(*req.Success))
+		}
+		err := tx.
+			Offset((pageNum - 1) * pageSize).
+			Limit(pageSize).
+			Find(&records).Error
+		if err != nil {
+			klog.Error(err)
+			return err
+		}
+		return nil
+	})
+
+	g.Go(func() error {
+		tx := query.GetDB().WithContext(groupCtx)
+		if len(req.Name) > 0 {
+			tx = tx.Where(query.CronJobRecord.Name.In(req.Name...))
+		}
+		if req.StartTime != nil {
+			tx = tx.Where(query.CronJobRecord.ExecuteTime.Gte(*req.StartTime))
+		}
+		if req.EndTime != nil {
+			tx = tx.Where(query.CronJobRecord.ExecuteTime.Lte(*req.EndTime))
+		}
+		if req.Success != nil {
+			tx = tx.Where(query.CronJobRecord.Success.Is(*req.Success))
+		}
+
+		err := tx.
+			Model(&model.CronJobRecord{}).
+			Count(&total).
+			Error
+		if err != nil {
+			klog.Error(err)
+			return err
+		}
+		return nil
+	})
+
+	if err := g.Wait(); err != nil {
+		klog.Error(err)
+		resputil.Error(c, err.Error(), resputil.ServiceError)
+		return
+	}
+
+	resputil.Success(c, map[string]any{
+		"records": records,
+		"total":   total,
+	})
+}
+
+type DeleteCronJobRecordsReq struct {
+	ID        []uint     `json:"id"`
+	StartTime *time.Time `json:"startTime"`
+	EndTime   *time.Time `json:"endTime"`
+}
+
+func (cm *OperationsMgr) DeleteCronjobRecords(c *gin.Context) {
+	req := &DeleteCronJobRecordsReq{}
+	if err := c.ShouldBindJSON(req); err != nil {
+		klog.Error(err)
+		resputil.Error(c, err.Error(), resputil.InvalidRequest)
+		return
+	}
+
+	tx := query.GetDB().WithContext(c)
+
+	if len(req.ID) > 0 {
+		tx = tx.Where(query.CronJobRecord.ID.In(req.ID...))
+	} else {
+		resputil.Error(c, "id is required", resputil.InvalidRequest)
+		return
+	}
+
+	if req.StartTime != nil {
+		tx = tx.Where(query.CronJobRecord.ExecuteTime.Gte(*req.StartTime))
+	}
+	if req.EndTime != nil {
+		tx = tx.Where(query.CronJobRecord.ExecuteTime.Lte(*req.EndTime))
+	}
 
 	res := tx.Delete(&model.CronJobRecord{})
 	if err := res.Error; err != nil {
 		klog.Error(err)
-		resputil.BadRequestError(c, err.Error())
+		resputil.Error(c, err.Error(), resputil.ServiceError)
 		return
 	}
 

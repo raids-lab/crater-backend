@@ -74,7 +74,11 @@ func (mgr *OperationsMgr) RegisterAdmin(g *gin.RouterGroup) {
 	g.PUT("/cronjob", mgr.UpdateCronjobConfig)
 	g.PUT("/add/locktime", mgr.AddLockTime)
 	g.PUT("/clear/locktime", mgr.ClearLockTime)
-	g.DELETE("/cronjob/record", mgr.DeleteCronjobRecords)
+
+	g.POST("/cronjob/config/name", mgr.GetCronjobNames)
+	g.POST("/cronjob/record/time", mgr.GetCronjobRecordTimeRange)
+	g.POST("/cronjob/record/list", mgr.GetCronjobRecords)
+	g.POST("/cronjob/record/delete", mgr.DeleteCronjobRecords)
 }
 
 func (cm *OperationsMgr) InitServerHandler(serverHandler http.Handler) {
