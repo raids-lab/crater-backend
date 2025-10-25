@@ -15,6 +15,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
@@ -311,10 +312,15 @@ func (cm *OperationsMgr) updateJobConfig(
 	return nil
 }
 
-// getCurrentJobConfigFromDB retrieves current job configuration from database
+// getCurrentJobConfigFromDB retrieves current job configuration from database with row-level lock
 func (cm *OperationsMgr) getCurrentJobConfigFromDB(tx *gorm.DB, name string) (*model.CronJobConfig, error) {
 	cur := &model.CronJobConfig{}
-	if txErr := tx.Model(cur).Where(query.CronJobConfig.Name.Eq(name)).First(cur).Error; txErr != nil {
+	// 使用 FOR UPDATE 悲观锁，防止并发修改冲突
+	if txErr := tx.
+		Clauses(clause.Locking{Strength: "UPDATE"}).
+		Model(cur).
+		Where(query.CronJobConfig.Name.Eq(name)).
+		First(cur).Error; txErr != nil {
 		err := fmt.Errorf("DB failed to query: %w", txErr)
 		klog.Error(err)
 		return nil, err
@@ -704,14 +710,15 @@ func (cm *OperationsMgr) DeleteCronjobRecords(c *gin.Context) {
 		resputil.Error(c, err.Error(), resputil.InvalidRequest)
 		return
 	}
+	if len(req.ID) == 0 && req.StartTime == nil && req.EndTime == nil {
+		resputil.Error(c, "id or startTime or endTime is required", resputil.InvalidRequest)
+		return
+	}
 
 	tx := query.GetDB().WithContext(c)
 
 	if len(req.ID) > 0 {
 		tx = tx.Where(query.CronJobRecord.ID.In(req.ID...))
-	} else {
-		resputil.Error(c, "id is required", resputil.InvalidRequest)
-		return
 	}
 
 	if req.StartTime != nil {
