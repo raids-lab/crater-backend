@@ -20,7 +20,6 @@ import (
 
 	"github.com/raids-lab/crater/dao/model"
 	"github.com/raids-lab/crater/dao/query"
-	"github.com/raids-lab/crater/internal/resputil"
 	"github.com/raids-lab/crater/pkg/alert"
 	"github.com/raids-lab/crater/pkg/config"
 	"github.com/raids-lab/crater/pkg/utils"
@@ -39,37 +38,23 @@ type CleanLowGPUUsageRequest struct {
 	Util      int `form:"util"`
 }
 
-// HandleLowGPUUsageJobs godoc
-//
-//	@Summary		Auto delete not using gpu job list
-//	@Description	check job list and delete not using gpu job
-//	@Tags			Operations
-//	@Accept			json
-//	@Produce		json
-//	@Security		Bearer
-//	@Param			use	query		CleanLowGPUUsageRequest	true	"timeRange util"
-//	@Success		200	{object}	resputil.Response[any]	"Success"
-//	@Failure		400	{object}	resputil.Response[any]	"Request parameter error"
-//	@Failure		500	{object}	resputil.Response[any]	"Other errors"
-//	@Router			/v1/operations/auto [delete]
-func (mgr *OperationsMgr) HandleLowGPUUsageJobs(c *gin.Context) {
-	var req CleanLowGPUUsageRequest
-	if err := c.ShouldBindQuery(&req); err != nil {
-		resputil.BadRequestError(c, err.Error())
-		return
+func (mgr *OperationsMgr) HandleLowGPUUsageJobs(c *gin.Context, req *CleanLowGPUUsageRequest) (map[string][]string, error) {
+	if req == nil {
+		err := errors.New("invalid request")
+		return nil, err
 	}
-
 	if req.TimeRange <= 0 || req.WaitTime <= 0 {
-		resputil.BadRequestError(c, "timeRange and waitTime must be greater than 0")
-		return
+		err := errors.New("timeRange and waitTime must be greater than 0")
+		return nil, err
 	}
 
 	remindJobList, deletionJobList := mgr.handleLowGPUUsageJobs(c, req.TimeRange, req.WaitTime, req.Util)
 
-	resputil.Success(c, map[string][]string{
+	ret := map[string][]string{
 		"reminded": remindJobList,
 		"deleted":  deletionJobList,
-	})
+	}
+	return ret, nil
 }
 
 func (mgr *OperationsMgr) handleLowGPUUsageJobs(
@@ -293,28 +278,11 @@ type CleanLongTimeRequest struct {
 	InteractiveDays *int `form:"interactiveDays"`
 }
 
-// HandleLongTimeRunningJobs godoc
-//
-//	@Summary		Cleanup jobs based on type and duration
-//	@Description	Delete batch jobs older than 4 days and interactive jobs older than 1 day
-//	@Tags			Operations
-//	@Accept			json
-//	@Produce		json
-//	@Security		Bearer
-//	@Param			use	query		CleanLongTimeRequest	true	"batchDays interactiveDays"
-//	@Success		200	{object}	resputil.Response[any]	"Success"
-//	@Failure		400	{object}	resputil.Response[any]	"Request parameter error"
-//	@Failure		500	{object}	resputil.Response[any]	"Other errors"
-//	@Router			/v1/admin/operations/cleanup [delete]
-//
-// validateCleanupRequest validates the cleanup request parameters
-func (mgr *OperationsMgr) HandleLongTimeRunningJobs(c *gin.Context) {
-	var req CleanLongTimeRequest
-	if err := c.ShouldBindQuery(&req); err != nil {
-		resputil.BadRequestError(c, err.Error())
-		return
+func (mgr *OperationsMgr) HandleLongTimeRunningJobs(c *gin.Context, req *CleanLongTimeRequest) (map[string][]string, error) {
+	if req == nil {
+		err := errors.New("invalid request")
+		return nil, err
 	}
-
 	batchJobTimeout := 4 * 24 * time.Hour
 	interactiveJobTimeout := 24 * time.Hour
 	if req.BatchDays != nil {
@@ -326,10 +294,11 @@ func (mgr *OperationsMgr) HandleLongTimeRunningJobs(c *gin.Context) {
 
 	defaultRemindTime := 24 * time.Hour
 	remindJobList, deletionJobList := mgr.handleLongTimeRunningJobs(c, batchJobTimeout, interactiveJobTimeout, defaultRemindTime)
-	resputil.Success(c, map[string][]string{
+	ret := map[string][]string{
 		"reminded": remindJobList,
 		"deleted":  deletionJobList,
-	})
+	}
+	return ret, nil
 }
 
 func (mgr *OperationsMgr) handleLongTimeRunningJobs(
@@ -467,28 +436,16 @@ type CancelWaitingJupyterRequest struct {
 	WaitMinitues int `form:"waitMinitues" binding:"required"`
 }
 
-// HandleWaitingJupyterJobs godoc
-//
-//	@Summary		Delete unscheduled jupyter jobs
-//	@Description	check pending jupyter jobs, delete if not scheduled
-//	@Tags			Operations
-//	@Accept			json
-//	@Produce		json
-//	@Security		Bearer
-//	@Param			use	query		CancelWaitingJupyterRequest	true	"waitMinitues"
-//	@Success		200	{object}	resputil.Response[any]		"Success"
-//	@Failure		400	{object}	resputil.Response[any]		"Request parameter error"
-//	@Failure		500	{object}	resputil.Response[any]		"Other errors"
-//	@Router			/v1/operations/waiting/jupyter [delete]
-func (mgr *OperationsMgr) HandleWaitingJupyterJobs(c *gin.Context) {
-	var req CancelWaitingJupyterRequest
-	if err := c.ShouldBindQuery(&req); err != nil {
-		resputil.BadRequestError(c, err.Error())
-		return
+func (mgr *OperationsMgr) HandleWaitingJupyterJobs(c *gin.Context, req *CancelWaitingJupyterRequest) (map[string][]string, error) {
+	if req == nil {
+		err := errors.New("invalid request")
+		return nil, err
 	}
-
 	deletedJobs := mgr.deleteUnscheduledJupyterJobs(c, req.WaitMinitues)
-	resputil.Success(c, deletedJobs)
+	ret := map[string][]string{
+		"deleted": deletedJobs,
+	}
+	return ret, nil
 }
 
 func (mgr *OperationsMgr) deleteUnscheduledJupyterJobs(c *gin.Context, waitMinitues int) []string {

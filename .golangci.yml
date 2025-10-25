@@ -170,6 +170,8 @@ linters:
       - third_party$
       - builtin$
       - examples$
+      - '(.+)_test\.go$'
+      - '(.+)/test/(.+)\.go$'
 formatters:
   enable:
     - gofmt
@@ -192,3 +194,5 @@ formatters:
       - third_party$
       - builtin$
       - examples$
+      - '(.+)_test\.go$'
+      - '(.+)/test/(.+)\.go$'

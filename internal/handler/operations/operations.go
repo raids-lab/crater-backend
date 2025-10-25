@@ -1,7 +1,12 @@
 package operations
 
 import (
+	"net/http"
+	"sync"
+	"time"
+
 	"github.com/gin-gonic/gin"
+	"github.com/robfig/cron/v3"
 	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -22,17 +27,36 @@ type OperationsMgr struct {
 	promClient     monitor.PrometheusInterface
 	taskService    aitaskctl.DBService
 	taskController aitaskctl.TaskControllerInterface
+
+	// cron
+	cron          *cron.Cron
+	serverHandler http.Handler
+	cronMutex     sync.RWMutex
 }
 
+var (
+	instance *OperationsMgr
+	once     sync.Once
+)
+
 func NewOperationsMgr(conf *handler.RegisterConfig) handler.Manager {
-	return &OperationsMgr{
-		name:           "operations",
-		client:         conf.Client,
-		kubeClient:     conf.KubeClient,
-		promClient:     conf.PrometheusClient,
-		taskService:    aitaskctl.NewDBService(),
-		taskController: conf.AITaskCtrl,
-	}
+	once.Do(func() {
+		instance = &OperationsMgr{
+			name:           "operations",
+			client:         conf.Client,
+			kubeClient:     conf.KubeClient,
+			promClient:     conf.PrometheusClient,
+			taskService:    aitaskctl.NewDBService(),
+			taskController: conf.AITaskCtrl,
+
+			cron: cron.New(cron.WithLocation(time.Local)),
+		}
+	})
+	return instance
+}
+
+func GetOperationsMgrInstance() *OperationsMgr {
+	return instance
 }
 
 func (mgr *OperationsMgr) GetName() string { return mgr.name }
@@ -45,12 +69,27 @@ func (mgr *OperationsMgr) RegisterProtected(_ *gin.RouterGroup) {
 
 func (mgr *OperationsMgr) RegisterAdmin(g *gin.RouterGroup) {
 	g.GET("/whitelist", mgr.GetWhiteList)
-	g.DELETE("/auto", mgr.HandleLowGPUUsageJobs)
 	g.PUT("/keep/:name", mgr.SetKeepWhenLowResourceUsage)
-	g.DELETE("/cleanup", mgr.HandleLongTimeRunningJobs)
-	g.DELETE("/waiting/jupyter", mgr.HandleWaitingJupyterJobs)
 	g.GET("/cronjob", mgr.GetCronjobConfigs)
 	g.PUT("/cronjob", mgr.UpdateCronjobConfig)
 	g.PUT("/add/locktime", mgr.AddLockTime)
 	g.PUT("/clear/locktime", mgr.ClearLockTime)
+
+	g.POST("/cronjob/config/name", mgr.GetCronjobNames)
+	g.POST("/cronjob/record/time", mgr.GetCronjobRecordTimeRange)
+	g.POST("/cronjob/record/list", mgr.GetCronjobRecords)
+	g.POST("/cronjob/record/delete", mgr.DeleteCronjobRecords)
+}
+
+func (cm *OperationsMgr) InitServerHandler(serverHandler http.Handler) {
+	cm.cronMutex.Lock()
+	defer cm.cronMutex.Unlock()
+	cm.serverHandler = serverHandler
+	cm.syncCronJob()
+}
+
+func (cm *OperationsMgr) StopCron() {
+	cm.cronMutex.Lock()
+	defer cm.cronMutex.Unlock()
+	cm.cron.Stop()
 }
