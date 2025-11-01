@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -21,13 +22,25 @@ import (
 // ServerRunner 封装服务器运行逻辑
 type ServerRunner struct {
 	backendConfig *config.Config
+	Server        *http.Server
 }
+
+var (
+	ServerRunnerInstance *ServerRunner
+	once                 sync.Once
+)
 
 // NewServerRunner 创建新的ServerRunner实例
 func NewServerRunner(backendConfig *config.Config) *ServerRunner {
-	return &ServerRunner{
-		backendConfig: backendConfig,
+	once.Do(func() {
+		ServerRunnerInstance = &ServerRunner{
+			backendConfig: backendConfig,
+		}
+	})
+	if ServerRunnerInstance == nil {
+		klog.Fatal("failed to create server runner")
 	}
+	return ServerRunnerInstance
 }
 
 // SetupLogger 设置日志记录器
@@ -55,13 +68,21 @@ var (
 	cancelTimeout     = 10 * time.Second // 设置取消操作的超时时间
 )
 
+func GetServerRunner() *ServerRunner {
+	return ServerRunnerInstance
+}
+
+func (sr *ServerRunner) GetServerHandler() http.Handler {
+	return sr.Server.Handler
+}
+
 // StartServer 启动HTTP服务器
 func (sr *ServerRunner) StartServer(registerConfig *handler.RegisterConfig) {
 	klog.Info("starting server")
 	backend := internal.Register(registerConfig)
 
 	// reference: https://gin-gonic.com/en/docs/examples/graceful-restart-or-stop
-	srv := &http.Server{
+	sr.Server = &http.Server{
 		Addr:              sr.backendConfig.Port,
 		Handler:           backend,
 		ReadHeaderTimeout: readHeaderTimeout,
@@ -69,7 +90,7 @@ func (sr *ServerRunner) StartServer(registerConfig *handler.RegisterConfig) {
 
 	go func() {
 		// service connections
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := sr.Server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			klog.Fatalf("listen: %s\n", err)
 		}
 	}()
@@ -86,7 +107,7 @@ func (sr *ServerRunner) StartServer(registerConfig *handler.RegisterConfig) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), cancelTimeout)
 	defer cancel()
-	if err := srv.Shutdown(ctx); err != nil {
+	if err := sr.Server.Shutdown(ctx); err != nil {
 		klog.Info("Gin Server Shutdown:", err)
 	}
 	klog.Info("Gin Server exiting")
